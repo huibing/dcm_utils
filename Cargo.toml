@@ -1,0 +1,10 @@
+[package]
+name = "dcm_parse"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+
+[dev-dependencies]
+rstest = {version = "0.24.0"}

@@ -1,0 +1,2 @@
+
+mod string_attr;
