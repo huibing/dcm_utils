@@ -1,6 +1,10 @@
 use std::str::FromStr;
+use crate::AxisType;
 
-struct StringAttr {
+const STRING_ATTR_IDENTIFIER: [&'static str; 4] = ["LANGNAME", "EINHEIT_X", "EINHEIT_Y", "EINHEIT_W"];
+
+#[allow(dead_code)]
+pub struct StringAttr {
     pub identifier: String,
     pub value: String,
 }
@@ -9,10 +13,12 @@ impl FromStr for StringAttr {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let var = s.trim().split_once(" ")
-                                .ok_or("Invalid string attribute")?; 
-        let identifier = var.0.to_string();
-        let value = var.1.strip_prefix("\"")         // string values are enclosed in double quotes
+        let words = s.trim().split_once(" ").ok_or("Invalid string attribute")?;
+        if !STRING_ATTR_IDENTIFIER.contains(&words.0) {
+            return Err("Invalid identifier");
+        }
+        let identifier = words.0.to_string();
+        let value = words.1.strip_prefix("\"")         // string values are enclosed in double quotes
                 .and_then(|s| s.strip_suffix("\""))
                 .and_then(|s| Some(s.to_string()))
                 .ok_or("Invalid string attribute")?;
@@ -20,14 +26,36 @@ impl FromStr for StringAttr {
     }
 }
 
-#[allow(non_camel_case_types)]
-enum CommonAttr {
-    LANGNAME(StringAttr),
-    EINHEIT_X(StringAttr),
-    EINHEIT_Y(StringAttr),
-    EINHEIT_Z(StringAttr),
-    EINHEIT_W(StringAttr),
-    NotACommonAttr()
+pub fn is_string_attr(s: &str) -> bool {
+    s.trim().split_whitespace().nth(0).map(|s| STRING_ATTR_IDENTIFIER.contains(&s)).unwrap_or(false)
+}
+
+pub fn is_axis_var(s: &str) -> bool {
+    s.trim().split_whitespace().next().map(|s| s == "*SSTY" || s == "*SSTY").unwrap_or(false)
+}
+
+pub struct AxisVar {
+    pub axistype: AxisType,
+    pub identifier: String,
+}
+
+impl FromStr for AxisVar {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let words = s.trim().split_whitespace().collect::<Vec<&str>>();
+        if words.len() != 2 {
+            return Err("Invalid axis variable");
+        }
+        let axistype = if words[0] == "*SSTX" {
+            AxisType::X
+        } else if words[0] == "*SSTY" {
+            AxisType::Y
+        } else {
+            return Err("Invalid axis type identifier");
+        };
+        Ok( Self{axistype, identifier: words[1].to_string() })
+    }
 }
 
 #[cfg(test)]
