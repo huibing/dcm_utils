@@ -1,11 +1,13 @@
 pub mod attr;
 pub mod block;
+pub mod blocks;
 pub mod value;
 
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
-use block::{FESTWERT, GRUPPENKENNLINIE, STUETZSTELLENVERTEILUNG, GRUPPENKENNFELD, FESTWERTEBLOCK, Block};
+use block::Block;
+use blocks::{FESTWERT, FESTWERTEBLOCK, GRUPPENKENNLINIE, STUETZSTELLENVERTEILUNG, GRUPPENKENNFELD};
 use indexmap::IndexMap;
 use log::warn;
 

@@ -7,13 +7,16 @@ mod tests {
     use rstest::*;
     use dcm_parse::DcmData;
     use std::fs::read_dir;
-    use log::info;
+    use log::{info, LevelFilter, SetLoggerError};
     use std::path::Path;
     use approx::assert_relative_eq;
+    use env_logger::Builder;
 
     #[fixture]
-    fn dcm_data() {
-        let _ = env_logger::builder().is_test(true).try_init();
+    #[once]
+    fn tester_logger() -> Result<(), SetLoggerError> {
+        let mut logger = Builder::new();
+        logger.filter_level(LevelFilter::Info).is_test(true).try_init()
     }
 
     #[rstest]
@@ -29,7 +32,8 @@ mod tests {
     }
 
     #[rstest]
-    fn dcm_file_smoke_test2(dcm_data: ()) {
+    fn dcm_file_smoke_test2(tester_logger: &Result<(), SetLoggerError> ) {
+        let _ = tester_logger.as_ref().unwrap();
         let entries = read_dir("./test-dcms").unwrap();
         for entry in entries {
             let entry = entry.unwrap();
