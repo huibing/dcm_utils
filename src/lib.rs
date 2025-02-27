@@ -1,5 +1,6 @@
 pub mod attr;
 pub mod block;
+pub mod value;
 
 use std::fs::File;
 use std::io::{BufRead, BufReader};

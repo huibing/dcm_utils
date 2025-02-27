@@ -2,72 +2,12 @@ use crate::attr::string_attr::{StringAttr, eval_string_attr};
 use crate::attr::value_attr::ValueAttr;
 use crate::attr::attr_arbitor::Attr;
 use crate::AxisType;
+use crate::value::Value;
 use std::str::FromStr;
 use std::error::Error;
 use log::{info, warn};
 
 
-#[derive(Debug)]
-pub enum Value {
-    WERT(Vec<f64>),
-    TEXT(Vec<String>),
-}
-
-impl Value {
-
-    pub fn new() -> Self {
-        Value::WERT(Vec::new())
-    }
-
-    pub fn len(&self) -> usize {
-        match self {
-            Value::WERT(v) => v.len(),
-            Value::TEXT(v) => v.len(),
-        }
-    }
-
-    pub fn extend_f64(&mut self, value: Vec<f64>) {
-        match self {
-            Value::WERT(v) => v.extend(value),
-            Value::TEXT(_) => {
-                warn!("cannot extend f64 to TEXT");
-                *self = Self::WERT(value);
-            }
-        }
-    }
-
-    pub fn extend_string(&mut self, value: Vec<String>) {
-        match self {
-            Value::WERT(_) => {
-                warn!("cannot extend string to f64, will renew the value");
-                *self = Self::TEXT(value);
-            }
-            Value::TEXT(v) => v.extend(value),
-        }
-    }
-}
-
-impl From<ValueAttr> for Value {
-
-    fn from(value: ValueAttr) -> Self {
-        match value {
-            ValueAttr::WERT(v) => Value::WERT(v),
-            ValueAttr::TEXT(v) => Value::TEXT(v),
-            _ => Value::WERT(vec![]),  // will not come here
-        }
-    }
-}
-
-impl PartialEq for Value {
-    
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Value::WERT(v1), Value::WERT(v2)) => v1 == v2,
-            (Value::TEXT(v1), Value::TEXT(v2)) => v1 == v2,
-            _ => false,
-        }
-    }
-}
 
 pub struct FESTWERT {
     pub attrs: Vec<StringAttr>,
@@ -215,7 +155,7 @@ impl FromStr for GRUPPENKENNLINIE {
 pub struct STUETZSTELLENVERTEILUNG {
     pub name: String,
     pub attrs: Vec<StringAttr>,
-    pub value: Vec<f64>,
+    pub value: Value,
     pub dim: usize,
 }
 
@@ -225,7 +165,7 @@ impl FromStr for STUETZSTELLENVERTEILUNG {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut lines = s.lines();
         let mut attrs = Vec::new();
-        let mut value: Vec<f64> = Vec::new();
+        let mut value: Value = Value::new();
         let first_line = lines.next().ok_or("no first line found in STUETZSTELLENVERTEILUNG")?;
         let name = first_line.split_whitespace().nth(1)
             .ok_or("no name found in STUETZSTELLENVERTEILUNG")?.to_string();
@@ -236,7 +176,7 @@ impl FromStr for STUETZSTELLENVERTEILUNG {
                 Ok(Attr::StringAttr(sa)) => attrs.push(sa),
                 Ok(Attr::ValueAttr(va)) => {
                     if let ValueAttr::STX(w) = va{
-                        value.extend(w.into_iter());
+                        value.extend_f64(w);
                     } else {
                         return Err("unknown value type".into());
                     }
@@ -263,6 +203,7 @@ pub struct GRUPPENKENNFELD {
     pub name: String,
     pub attrs: Vec<StringAttr>,
     pub value: Vec<Value>,
+    pub value_flat: Value,
     pub x_axis_name: String,
     pub y_axis_name: String,
     pub dim: (usize, usize),
@@ -318,7 +259,7 @@ impl FromStr for GRUPPENKENNFELD {
                 }
             }
         }
-        
+        let value_flat = value_holder.clone();
         let value = match value_holder {
             Value::TEXT(t) => {
                 t.chunks(ncol).map(|v| Value::TEXT(v.to_vec())).collect()
@@ -336,6 +277,7 @@ impl FromStr for GRUPPENKENNFELD {
             x_axis_name,
             y_axis_name,
             attrs,
+            value_flat
         })
     }
 }
@@ -347,6 +289,55 @@ pub enum Block {
     Table(GRUPPENKENNLINIE),
     Distribution(STUETZSTELLENVERTEILUNG),
     Map(GRUPPENKENNFELD),
+}
+
+impl Block {
+    pub fn get_values(&self) -> &Value {
+        match self {
+            Block::Constant(c) => &c.value,
+            Block::ConstantBlock(c) => &c.value,
+            Block::Table(t) => &t.value,
+            Block::Distribution(d) => &d.value,
+            Block::Map(m) => &m.value_flat,
+        }
+    }
+
+    pub fn get_name(&self) -> &str {
+        match self {
+            Block::Constant(c) => &c.name,
+            Block::ConstantBlock(c) => &c.name,
+            Block::Table(t) => &t.name,
+            Block::Distribution(d) => &d.name,
+            Block::Map(m) => &m.name,
+        }
+    }
+
+    pub fn get_attr(&self, attr_name: &str) -> Option<String> {
+        let attrs = match self {
+            Block::Constant(c) => &c.attrs,
+            Block::ConstantBlock(c) => &c.attrs,
+            Block::Table(t) => &t.attrs,
+            Block::Distribution(d) => &d.attrs,
+            Block::Map(m) => &m.attrs,
+        };
+        attrs.iter().find(|k| k.identifier == attr_name).map(|v| v.value.clone())
+    }
+
+    pub fn get_w_unit(&self) -> Option<String> {
+        self.get_attr("EINHEIT_W")
+    }
+
+    pub fn get_x_unit(&self) -> Option<String> {
+        self.get_attr("EINHEIT_X")
+    }
+
+    pub fn get_y_unit(&self) -> Option<String> {
+        self.get_attr("EINHEIT_Y")
+    }
+
+    pub fn get_description(&self) -> Option<String> {
+        self.get_attr("LANGNAME")
+    }
 }
 
 #[cfg(test)]
@@ -444,7 +435,7 @@ mod tests {
         assert_eq!(table.dim, 9);
         assert_eq!(table.value.len(), 9);
         assert_eq!(table.attrs.len(), 2);
-        assert_eq!(table.value, vec![0.0, 29.9812488555908200, 39.9937477111816410, 60.0187492370605470, 79.9874954223632810, 100.0124969482421900, 119.9812469482421900, 150.0187530517578100, 200.0249938964843700]);      
+        assert_eq!(table.value, Value::WERT(vec![0.0, 29.9812488555908200, 39.9937477111816410, 60.0187492370605470, 79.9874954223632810, 100.0124969482421900, 119.9812469482421900, 150.0187530517578100, 200.0249938964843700]));      
     }
 
     #[rstest]
@@ -561,6 +552,10 @@ mod tests {
         assert_eq!(block.name, "SLC_LC_CP_flgDoorChkDiBootLowr_c");
         assert_eq!(block.value, Value::WERT(vec![1.0, 1.0, 1.0, 1.0, 0.0, 1.0]));
         assert_eq!(block.dim, 6);
+        let blk = Block::ConstantBlock(block);
+        assert_eq!(blk.get_name(), "SLC_LC_CP_flgDoorChkDiBootLowr_c");
+        assert_eq!(blk.get_w_unit().unwrap(), "na");
+        assert_eq!(blk.get_description().unwrap(), "Door check setup for Easy Entry Control, 1 = Disabled 0 = Enabled [FL,FR,RL,RR,Boot,Bonnet]");
     }
 }
 
