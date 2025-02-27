@@ -7,6 +7,7 @@ pub enum Attr {
     StringAttr(StringAttr),
     AxisVar(AxisVar),
     ValueAttr(ValueAttr), // TODO: Add more types here
+    EmptyLine, // TODO: Add more types here
 }
 
 impl FromStr for Attr {
@@ -19,6 +20,8 @@ impl FromStr for Attr {
             Ok(Attr::ValueAttr(s.parse()?))
         } else if is_axis_var(s){
             Ok(Attr::AxisVar(s.parse()?))
+        } else if s == "*SST" {
+            Ok(Attr::EmptyLine)
         } else {
             Err("Invalid attribute".into())
         }

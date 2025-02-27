@@ -2,12 +2,13 @@ use std::str::FromStr;
 use std::error::Error;
 
 type DynoError = Box<dyn Error>;
-const VALUE_ATTR_IDENTIFIER:[&str; 3] = ["ST/X", "ST/Y", "WERT"];
+const VALUE_ATTR_IDENTIFIER:[&str; 4] = ["ST/X", "ST/Y", "WERT", "TEXT"];
 
 pub enum ValueAttr {
     WERT(Vec<f64>),
     STX(Vec<f64>),
     STY(Vec<f64>),
+    TEXT(Vec<String>),
 }
 
 
@@ -23,18 +24,25 @@ impl FromStr for ValueAttr {
                     values.push(val.parse()?);
                 }
                 Ok(Self::WERT(values))},
-            Some("STX") => {
+            Some("ST/X") => {
                 let mut values = Vec::<f64>::new();
                 for val in line.split_whitespace().skip(1) {
                     values.push(val.parse()?);
                 }
                 Ok(Self::STX(values))},
-            Some("STY") => {
+            Some("ST/Y") => {
                 let mut values = Vec::<f64>::new();
                 for val in line.split_whitespace().skip(1) {
                     values.push(val.parse()?);
                 }
                 Ok(Self::STY(values))},
+            Some("TEXT") => {
+                let mut values = Vec::<String>::new();
+                for val in line.split_whitespace().skip(1) {
+                    let text = val.strip_prefix("\"").and_then(|s| s.strip_suffix("\"")).unwrap_or(val);
+                    values.push(text.to_string());
+                }
+                Ok(Self::TEXT(values))},
             _ => Err("Unknown line format".into())
         }
     }
@@ -46,6 +54,7 @@ impl From<ValueAttr> for Vec<f64> {
             ValueAttr::WERT(v) => v,
             ValueAttr::STX(v) => v,
             ValueAttr::STY(v) => v,
+            ValueAttr::TEXT(_) => vec![std::f64::NAN]   // not a number
         }
     }
 }

@@ -26,12 +26,17 @@ impl FromStr for StringAttr {
     }
 }
 
+pub fn eval_string_attr(v: &Vec<StringAttr>, identifier: &str) -> Option<String> {
+    v.iter().find(|a| a.identifier == identifier).map(|a| a.value.clone())
+}
+
 pub fn is_string_attr(s: &str) -> bool {
     s.trim().split_whitespace().nth(0).map(|s| STRING_ATTR_IDENTIFIER.contains(&s)).unwrap_or(false)
 }
 
 pub fn is_axis_var(s: &str) -> bool {
-    s.trim().split_whitespace().next().map(|s| s == "*SSTY" || s == "*SSTY").unwrap_or(false)
+    s.trim().split_whitespace().next()
+        .map(|s| s == "*SSTX" || s == "*SSTY").unwrap_or(false)
 }
 
 pub struct AxisVar {
