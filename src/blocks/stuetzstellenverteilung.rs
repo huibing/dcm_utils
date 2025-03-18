@@ -52,3 +52,18 @@ impl FromStr for STUETZSTELLENVERTEILUNG {
         })
     }
 }
+
+impl STUETZSTELLENVERTEILUNG {
+    pub fn from_f64(name: &str, desc: &str, value: &Vec<f64>, unit: &str) -> Self {
+        let dim = value.len();
+        let value = Value::WERT(value.clone());
+        Self {
+            name: String::from(name),
+            attrs: vec![StringAttr::new("LANGNAME", desc),
+                        StringAttr::new("EINHEIT_X", unit)],
+            value,
+            dim
+        }
+    }
+
+}

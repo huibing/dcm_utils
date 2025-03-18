@@ -54,8 +54,23 @@ impl Block {
         self.get_attr("EINHEIT_Y")
     }
 
-    pub fn get_description(&self) -> Option<String> {
+    pub fn get_desc(&self) -> Option<String> {
         self.get_attr("LANGNAME")
+    }
+
+    pub fn get_x_var_name(&self) -> Option<String> {
+        match self {
+            Block::Map(m) => Some(m.x_axis_name.clone()),
+            Block::Table(t) => Some(t.axis_var_name.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn get_y_var_name(&self) -> Option<String> {
+        match self {
+            Block::Map(m) => Some(m.y_axis_name.clone()),
+            _ => None,
+        }
     }
 }
 
@@ -275,7 +290,8 @@ mod tests {
         let blk = Block::ConstantBlock(block);
         assert_eq!(blk.get_name(), "SLC_LC_CP_flgDoorChkDiBootLowr_c");
         assert_eq!(blk.get_w_unit().unwrap(), "na");
-        assert_eq!(blk.get_description().unwrap(), "Door check setup for Easy Entry Control, 1 = Disabled 0 = Enabled [FL,FR,RL,RR,Boot,Bonnet]");
+        assert_eq!(blk.get_desc().unwrap(), "Door check setup for Easy Entry Control, 1 = Disabled 0 = Enabled [FL,FR,RL,RR,Boot,Bonnet]");
     }
+
 }
 

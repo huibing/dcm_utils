@@ -43,3 +43,26 @@ impl FromStr for FESTWERT {
         })
     }
 }
+
+
+impl FESTWERT {
+    pub fn from_f64(name: String, value: f64, desc: String, unit: String) -> Self {
+        let value = Value::WERT(vec![value]);
+        Self {
+            name,
+            value,
+            attrs: vec![StringAttr::new("LANGNAME", desc.as_str()),
+                        StringAttr::new("EINHEIT_W", unit.as_str())],
+        }
+    }
+
+    pub fn from_string(name: String, value: String, desc: String, unit: String) -> Self {
+        let value = Value::TEXT(vec![value]);
+        Self {
+            name,
+            value,
+            attrs: vec![StringAttr::new("LANGNAME", desc.as_str()),
+                        StringAttr::new("EINHEIT_W", unit.as_str())],
+        }
+    }
+}

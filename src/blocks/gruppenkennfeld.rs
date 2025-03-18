@@ -90,3 +90,51 @@ impl FromStr for GRUPPENKENNFELD {
         })
     }
 }
+
+impl GRUPPENKENNFELD {
+    pub fn from_f64(name: &str, value: Vec<Vec<f64>>, x_axis: Vec<f64>, 
+        y_axis: Vec<f64>, x_axis_name: &str, y_axis_name: &str, 
+        desc: &str, unit_w: &str, unit_x: &str, unit_y: &str) -> Self {
+        let dim = (x_axis.len(), y_axis.len());
+        let value_flat = Value::WERT(value.iter().flat_map(|v| v.clone()).collect());
+        let attrs = vec![StringAttr::new("LANGNAME", desc),
+                         StringAttr::new("EINHEIT_W", unit_w),
+                         StringAttr::new("EINHEIT_X", unit_x),
+                         StringAttr::new("EINHEIT_Y", unit_y)];
+        let value = value.into_iter().map(|v| Value::WERT(v)).collect();
+        Self {
+            value,
+            dim,
+            name: name.to_string(),
+            x_axis,
+            y_axis,
+            x_axis_name: x_axis_name.to_string(),
+            y_axis_name: y_axis_name.to_string(),
+            attrs,
+            value_flat
+        }
+    }
+
+    pub fn from_string(name: String, value: Vec<Vec<String>>, x_axis: Vec<f64>, 
+        y_axis: Vec<f64>, x_axis_name: String, y_axis_name: String, 
+        desc: String, unit_w: String, unit_x: String, unit_y: String) -> Self {
+        let dim = (x_axis.len(), y_axis.len());
+        let value_flat = Value::TEXT(value.iter().flat_map(|v| v.clone()).collect());
+        let attrs = vec![StringAttr::new("LANGNAME", desc.as_str()),
+                         StringAttr::new("EINHEIT_W", unit_w.as_str()),
+                         StringAttr::new("EINHEIT_X", unit_x.as_str()),
+                         StringAttr::new("EINHEIT_Y", unit_y.as_str())];
+        let value = value.into_iter().map(|v| Value::TEXT(v)).collect();
+        Self {
+            value,
+            dim,
+            name,
+            x_axis,
+            y_axis,
+            x_axis_name,
+            y_axis_name,
+            attrs,
+            value_flat
+        }
+    }
+}

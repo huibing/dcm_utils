@@ -4,6 +4,7 @@ use crate::attr::attr_arbitor::Attr;
 use crate::attr::string_attr::StringAttr;
 use crate::value::Value;
 use log::{warn, info};
+use crate::attr::value_attr::ValueAttr;
 
 
 pub struct FESTWERTEBLOCK {
@@ -28,7 +29,13 @@ impl FromStr for FESTWERTEBLOCK {
         for line in lines {
             match line.parse::<Attr>() {
                 Ok(Attr::StringAttr(sa)) => attrs.push(sa),
-                Ok(Attr::ValueAttr(v)) => value = v.into(),
+                Ok(Attr::ValueAttr(v)) => {
+                    if let ValueAttr::WERT(w) = v {
+                        value.extend_f64(w);
+                    } else if let ValueAttr::TEXT(t) = v {
+                        value.extend_string(t);
+                    }
+                },
                 Ok(Attr::AxisVar(_)) => {
                     info!("ignoring axis var in FESTWERT");
                 },
@@ -47,5 +54,31 @@ impl FromStr for FESTWERTEBLOCK {
             value,
             dim,
         })
+    }
+}
+
+impl FESTWERTEBLOCK {
+    pub fn from_f64(name: String, value: Vec<f64>, desc: String, unit: String) -> Self {
+        let dim = value.len();
+        let value = Value::WERT(value);
+        Self {
+            name,
+            value,
+            attrs: vec![StringAttr::new("LANGNAME", desc.as_str()),
+                        StringAttr::new("EINHEIT_W", unit.as_str())],
+            dim,
+        }
+    }
+
+    pub fn from_string(name: String, value: Vec<String>, desc: String, unit: String) -> Self {
+        let dim = value.len();
+        let value = Value::TEXT(value);
+        Self {
+            name,
+            value,
+            attrs: vec![StringAttr::new("LANGNAME", desc.as_str()),
+                        StringAttr::new("EINHEIT_W", unit.as_str())],
+            dim,
+        }
     }
 }

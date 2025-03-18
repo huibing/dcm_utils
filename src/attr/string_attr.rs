@@ -26,6 +26,16 @@ impl FromStr for StringAttr {
     }
 }
 
+impl StringAttr {
+    pub fn new(identifier: &str, value: &str) -> Self {
+        StringAttr {
+            identifier: identifier.to_string(),
+            value: value.to_string(),
+        }
+    }
+}
+
+
 pub fn eval_string_attr(v: &Vec<StringAttr>, identifier: &str) -> Option<String> {
     v.iter().find(|a| a.identifier == identifier).map(|a| a.value.clone())
 }

@@ -65,3 +65,31 @@ impl FromStr for GRUPPENKENNLINIE {
         )
     }
 }
+
+impl GRUPPENKENNLINIE {
+    pub fn from_f64(name: &str, value: &Vec<f64>, desc: &str, unit: &str, unit_x: &str, axis_var_name: &str, axis: &Vec<f64>) -> Self {
+        let dim = value.len();
+        let value = Value::WERT(value.clone());
+        Self {
+            name: name.to_string(),
+            attrs: vec![StringAttr::new("LANGNAME", desc), StringAttr::new("EINHEIT_W", unit), StringAttr::new("EINHEIT_X", unit_x)],
+            value,
+            axis: axis.clone(),
+            axis_var_name: axis_var_name.to_string(),
+            dim,
+        }
+    }
+
+    pub fn from_string(name: &str, value: Vec<String>, desc: String, unit: &str, unit_x:&str, axis_var_name: String, axis: Vec<f64>) -> Self {
+        let dim = value.len();
+        let value = Value::TEXT(value);
+        Self {
+            name: name.to_string(),
+            attrs: vec![StringAttr::new("LANGNAME", desc.as_str()), StringAttr::new("EINHEIT_W", unit), StringAttr::new("EINHEIT_X", unit_x)],
+            value,
+            axis,
+            axis_var_name,
+            dim,
+        }
+    }
+}

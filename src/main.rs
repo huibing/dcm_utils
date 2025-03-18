@@ -56,6 +56,7 @@ mod tests {
         assert_relative_eq!(constant.get_values().try_into_f64().unwrap()[0], 1820.8, epsilon = 0.1);
         let constant = d.blocks.get("CDCAct_DmprIMax_C").unwrap();
         assert_relative_eq!(constant.get_values().try_into_f64().unwrap()[0], 1800f64, epsilon = 1.0);
+        assert_eq!(constant.get_desc().unwrap(), "Maximum allowed damper current demand which also limits the tester function demand");
         let table = d.blocks.get("CDCAct_DmprIMaxFrnt_T").unwrap();
         assert_eq!(*table.get_values().try_into_f64().unwrap(), vec![1600.0; 8]);
         let map = d.blocks.get("CDCBlnd_Sel_M").unwrap();

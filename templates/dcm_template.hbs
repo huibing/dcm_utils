@@ -1,0 +1,78 @@
+* encoding="UTF-8"
+* DAMOS format
+* Created by {{creator}}
+* Creation date: {{timestamp}}
+*
+* Project: 
+* Dataset: 
+
+KONSERVIERUNG_FORMAT 2.0
+
+* no memory layouts specified
+
+{{#each constant}}
+FESTWERT {{name}} 
+   LANGNAME "{{desc}}" 
+   EINHEIT_W "{{unit}}"
+{{dcm_vector "WERT" value}}
+END{{#if @last}}{{else}}
+
+{{/if}}
+{{/each}}
+
+
+{{#each constantblock}}
+FESTWERTEBLOCK {{name}} {{dim}}
+   LANGNAME "{{desc}}" 
+   EINHEIT_W "{{unit}}"
+{{dcm_vector "WERT" value}}
+END{{#if @last}}{{else}}
+
+{{/if}}
+{{/each}}
+
+
+{{#each tables}}
+GRUPPENKENNLINIE {{name}} {{dim}}
+   LANGNAME "{{desc}}" 
+   EINHEIT_X "{{unit_x}}"
+   EINHEIT_W "{{unit_w}}"
+*SSTX   {{axis_name}}
+{{dcm_vector "ST/X" axis}}   
+{{dcm_vector "WERT" value}}  
+END{{#if @last}}{{else}}
+
+{{/if}}
+{{/each}}
+
+
+{{#each axis}}
+STUETZSTELLENVERTEILUNG {{name}} {{dim}}
+*SST
+   LANGNAME "{{desc}}" 
+   EINHEIT_X "{{unit}}"
+{{dcm_vector "ST/X" value}}   
+END{{#if @last}}{{else}}
+
+{{/if}}
+{{/each}}
+
+
+{{#each map}}
+GRUPPENKENNFELD {{name}} {{dim_x}} {{dim_y}}
+   LANGNAME "{{desc}}" 
+   EINHEIT_X "{{unit_x}}"
+   EINHEIT_Y "{{unit_y}}"
+   EINHEIT_W "{{unit_w}}"
+*SSTX	{{axis_x_name}}
+*SSTY	{{axis_y_name}}
+{{dcm_vector "ST/X" axis_x}}   
+{{#each value_block}}
+{{dcm_vector "ST/Y" this.[1]}}
+{{dcm_vector "WERT" this.[0]}}
+{{/each}}
+END{{#if @last}}{{else}}
+
+{{/if}}
+{{/each}}
+

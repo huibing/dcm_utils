@@ -1,6 +1,7 @@
 use log::warn;
 use crate::attr::value_attr::ValueAttr;
 use std::error::Error;
+use serde::{Serialize, Serializer};
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -68,5 +69,47 @@ impl PartialEq for Value {
             (Value::TEXT(v1), Value::TEXT(v2)) => v1 == v2,
             _ => false,
         }
+    }
+}
+
+impl Serialize for Value {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Value::WERT(values) => {
+                // 序列化 Vec<f64> 为数字数组
+                values.serialize(serializer)
+            }
+            Value::TEXT(values) => {
+                // 序列化 Vec<String> 为字符串数组
+                values.serialize(serializer)
+            }
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use rstest::*;
+    use super::*;
+    use serde_json;
+
+    #[rstest]
+    fn test_value_serialize() {
+        let value = Value::WERT(vec![1.0, 2.0, 3.0]);
+        let expected_json = r#"[1.0,2.0,3.0]"#;
+        let json = serde_json::to_string(&value).unwrap();
+        assert_eq!(json, expected_json);
+    }
+
+    #[rstest]
+    fn test_value_serialize_string() {
+        let value = Value::TEXT(vec!["hello".to_string(), "not a number".to_string()]);
+        let expected_json = r#"["hello","not a number"]"#;
+        let json = serde_json::to_string(&value).unwrap();
+        assert_eq!(json, expected_json);
     }
 }
