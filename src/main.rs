@@ -1,11 +1,82 @@
+use dcm_utils::{
+    DcmData,
+    merge_dcm_data,
+    update_dcm_data,
+};
+use clap::{Parser, Subcommand};
+use std::path::PathBuf;
+use env_logger::Builder;
+use chrono::Local;
+use std::io::Write;
+
+
+#[derive(Parser)]
+#[command(name = "DCM Utils")]
+#[command(about = "A tool to merge and update DCM files", long_about = None)]
+#[command(version = "1.0")]
+
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Merge multiple DCM files into one using the first file as the base
+    /// If calibration data collides, the first file will be used as the base. If the first file has a variable that is not in the other files, it will be kept. If the other files have variables that are not in the first file, they will be added to the merged file.
+    Merge {
+        dcms: Vec<PathBuf>,
+        #[arg(short, long, default_value = "merged.dcm")]
+        output: PathBuf,
+    },
+    /// update the first DCM file with the data from the other DCM files
+    /// If calibration variables does not exist in the first DCM file, they will be discarded.
+    Update {
+        dcms: Vec<PathBuf>,
+        #[arg(short, long, default_value = "updated.dcm")]
+        output: PathBuf,
+    },
+}
+
+
 fn main() {
-    println!("Hello, world!");
+    let mut logger = Builder::new();
+    logger.format( |buf, record| {
+        let now = Local::now();
+        let timestamp = now.format("%Y-%m-%d %H:%M:%S").to_string();
+        writeln!(
+                buf,
+                "[{}] [{}] - {}",
+                timestamp,
+                record.level(),
+                record.args()
+            )
+    });
+    logger.filter_level(log::LevelFilter::Info).try_init().unwrap();
+    let cli = Cli::parse();
+    match cli.command {
+        Commands::Merge { dcms, output } => {
+            let main = dcms.first().expect("At least one DCM file is required");
+            let others = &dcms[1..];
+            let mut main_dcm = DcmData::new(&main);
+            let other_dcms: Vec<DcmData> = others.iter().map(|p| DcmData::new(p)).collect();
+            merge_dcm_data(&mut main_dcm, other_dcms);
+            main_dcm.render_to_file(&output);
+        },
+        Commands::Update { dcms, output } => {
+            let mut dcm = DcmData::new(&dcms[0]);
+            let other_dcms: Vec<DcmData> = dcms.iter().skip(1).map(|p| DcmData::new(p)).collect();
+            update_dcm_data(&mut dcm, other_dcms);
+            dcm.render_to_file(&output);
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use rstest::*;
-    use dcm_parse::DcmData;
+    use dcm_utils::DcmData;
     use std::fs::read_dir;
     use log::{info, LevelFilter, SetLoggerError};
     use std::path::Path;

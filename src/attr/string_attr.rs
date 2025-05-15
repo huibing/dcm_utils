@@ -4,6 +4,7 @@ use crate::AxisType;
 const STRING_ATTR_IDENTIFIER: [&'static str; 4] = ["LANGNAME", "EINHEIT_X", "EINHEIT_Y", "EINHEIT_W"];
 
 #[allow(dead_code)]
+#[derive(Clone, Debug)]
 pub struct StringAttr {
     pub identifier: String,
     pub value: String,

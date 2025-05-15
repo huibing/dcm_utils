@@ -10,7 +10,7 @@ use std::path::Path;
 use block::Block;
 use blocks::{FESTWERT, FESTWERTEBLOCK, GRUPPENKENNLINIE, STUETZSTELLENVERTEILUNG, GRUPPENKENNFELD};
 use indexmap::IndexMap;
-use log::warn;
+use log::{warn, info};
 use handlebars::*;
 use serde_json::json;
 use chrono::prelude::*;
@@ -63,6 +63,12 @@ pub struct DcmData {
 }
 
 impl DcmData {
+    pub fn from_blocks(blocks: IndexMap<String, Block>) -> Self {
+        DcmData {
+            blocks
+        }
+    }
+
     pub fn new(path: &Path) -> Self {  // shall not return error here
         let mut file = File::open(path).unwrap();
         let reader = BufReader::new(&mut file);
@@ -165,6 +171,46 @@ impl DcmData {
             }
         }
     }
+
+    pub fn contains_block(&self, block_name: &str) -> bool {
+        self.blocks.contains_key(block_name)
+    }
+
+    pub fn render_to_file(&self, file: &Path) {
+        write_dcm_data(self, file);
+    }
+}
+
+
+pub fn merge_dcm_data(main: &mut DcmData, others: Vec<DcmData>) -> () {
+    /*
+    if the same block name exists in both dcms, the block in the others will be discarded. 
+    */
+    for data in others.iter() {
+        for (key, block) in &data.blocks {
+            if !main.contains_block(key.as_str()) {
+                main.blocks.insert(key.clone(), block.clone());
+            } else {
+                info!("Block : {} already exists in main dcm data, skipping", key);
+            }
+        }
+    }
+}
+
+pub fn update_dcm_data(main: &mut DcmData, others: Vec<DcmData>) -> () {
+    /*
+    if the same block name exists in both dcms, the block in the others will be used to update main dcm. 
+    */
+    for data in others.iter() {
+        for (key, block) in &data.blocks {
+            if main.contains_block(key.as_str()) {
+                main.blocks.insert(key.clone(), block.clone()); // this will overwrite the existing block
+                info!("Block : {} updated in dcm data", key);
+            } else {
+                info!("Block : {} does not exist in main dcm data, skipping", key);
+            }
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -178,7 +224,7 @@ struct Axis {
 
 
 
-pub fn write_dcm_data(data: &DcmData, file: &mut File) {
+pub fn write_dcm_data(data: &DcmData, file: &Path) {
     /* handlebars template  */
     let mut reg = Handlebars::new();
     let template = include_str!("../templates/dcm_template.hbs");
@@ -273,7 +319,8 @@ pub fn write_dcm_data(data: &DcmData, file: &mut File) {
         let file = File::create("./output/data.json").unwrap();
         serde_json::to_writer_pretty(file, &data_dict).unwrap();
     }
-    reg.render_to_write("dcm_file", &data_dict, file).unwrap();
+    let writer = File::create(file).unwrap();
+    reg.render_to_write("dcm_file", &data_dict, writer).unwrap();
 }
 
 
@@ -290,8 +337,8 @@ mod tests {
         let file_to_read = "./test-dcms/NT3_ALPS_Blanc-AWDAIR_Zone-Lite_XM_BL0100_20250220_LB_1.DCM";
         let file_to_write = "./output/test.DCM";
         let dcm_data = DcmData::new(Path::new(file_to_read));
-        let mut file = File::create(file_to_write).unwrap();
-        write_dcm_data(&dcm_data, &mut file);
+        let path = Path::new(file_to_write);
+        write_dcm_data(&dcm_data, path);
     }
 
     #[rstest]
@@ -299,8 +346,8 @@ mod tests {
         let file_to_read = "./test-dcms/test1.DCM";
         let file_to_write = "./output/test1_gen.DCM";
         let dcm_data = DcmData::new(Path::new(file_to_read));
-        let mut file = File::create(file_to_write).unwrap();
-        write_dcm_data(&dcm_data, &mut file);
+        let path = Path::new(file_to_write);
+        write_dcm_data(&dcm_data, path);
     }
 
     #[rstest]
@@ -315,7 +362,7 @@ mod tests {
         let dcm_data = DcmData {
             blocks
         };
-        let mut file = File::create("./output/festwert.DCM").unwrap();
-        write_dcm_data(&dcm_data, &mut file);
+        let path = Path::new("./output/festwert.DCM");
+        write_dcm_data(&dcm_data, path);
     }
 }

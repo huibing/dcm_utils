@@ -1,5 +1,5 @@
 [package]
-name = "dcm_parse"
+name = "dcm_utils"
 version = "0.1.0"
 edition = "2021"
 
@@ -11,6 +11,7 @@ handlebars = "6.3.1"
 serde_json = "1.0.139"
 chrono = "0.4.40"
 serde = {version="1.0.218", features=["derive"]}
+clap = {version = "4.5.38", features = ["derive"]}
 
 
 [dev-dependencies]

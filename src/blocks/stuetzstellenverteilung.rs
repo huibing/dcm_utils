@@ -6,6 +6,7 @@ use crate::value::Value;
 use log::{warn, info};
 
 
+#[derive(Clone)]
 pub struct STUETZSTELLENVERTEILUNG {
     pub name: String,
     pub attrs: Vec<StringAttr>,

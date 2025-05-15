@@ -2,6 +2,7 @@ use crate::value::Value;
 use crate::blocks::{FESTWERT, FESTWERTEBLOCK, GRUPPENKENNLINIE, STUETZSTELLENVERTEILUNG, GRUPPENKENNFELD};
 
 
+#[derive(Clone)]
 pub enum Block {
     Constant(FESTWERT),
     ConstantBlock(FESTWERTEBLOCK),

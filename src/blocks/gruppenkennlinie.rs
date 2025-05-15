@@ -7,6 +7,7 @@ use crate::value::Value;
 use log::{warn, info};
 
 
+#[derive(Clone)]
 pub struct GRUPPENKENNLINIE {
     pub name : String,
     pub attrs: Vec<StringAttr>,

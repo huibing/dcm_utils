@@ -7,6 +7,7 @@ use log::{warn, info};
 use crate::attr::value_attr::ValueAttr;
 
 
+#[derive(Clone)]
 pub struct FESTWERTEBLOCK {
     pub attrs: Vec<StringAttr>,
     pub value: Value,       // for FESTWERT, only one value in the vector

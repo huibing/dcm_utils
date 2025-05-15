@@ -7,7 +7,7 @@ use crate::AxisType;
 use log::warn;
 
 
-
+#[derive(Clone)]
 pub struct GRUPPENKENNFELD {
     pub name: String,
     pub attrs: Vec<StringAttr>,
