@@ -2,6 +2,7 @@ pub mod attr;
 pub mod block;
 pub mod blocks;
 pub mod value;
+pub mod diff;
 
 use std::env;
 use std::fs::File;
@@ -15,6 +16,7 @@ use handlebars::*;
 use serde_json::json;
 use chrono::prelude::*;
 use serde::{Serialize, Deserialize};
+use regex::Regex;
 
 
 /* handler bars helper */
@@ -178,6 +180,34 @@ impl DcmData {
 
     pub fn render_to_file(&self, file: &Path) {
         write_dcm_data(self, file);
+    }
+
+    pub fn filter_include(&mut self, include_pats: &Vec<String>) {
+        // filter blocks by regex pattern: only include blocks that match one of the patterns
+        let patterns = include_pats.iter()
+            .map(|p| Regex::new(p).unwrap())
+            .collect::<Vec<Regex>>();
+        let mut keys_to_keep = Vec::new();
+        for (key, _) in self.blocks.iter() {
+            if patterns.iter().any(|p| p.is_match(key)) {
+                keys_to_keep.push(key.clone());
+            }
+        }
+        self.blocks.retain(|k, _| keys_to_keep.contains(k));
+    }
+
+    pub fn filter_exclude(&mut self, exclude_pats: &Vec<String>) {
+        // filter blocks by regex pattern: exclude blocks that match one of the patterns
+        let patterns = exclude_pats.iter()
+            .map(|p| Regex::new(p).unwrap())
+            .collect::<Vec<Regex>>();
+        let mut keys_to_remove = Vec::new();
+        for (key, _block) in self.blocks.iter_mut() {
+            if patterns.iter().any(|p| p.is_match(key)) {
+                keys_to_remove.push(key.clone());
+            }
+        }
+        self.blocks.retain(|k, _| !keys_to_remove.contains(k));
     }
 }
 

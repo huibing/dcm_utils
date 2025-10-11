@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use env_logger::Builder;
 use chrono::Local;
 use std::io::Write;
-
+use colored::Colorize;
 
 #[derive(Parser)]
 #[command(name = "DCM Utils")]
@@ -24,7 +24,9 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Merge multiple DCM files into one using the first file as the base
-    /// If calibration data collides, the first file will be used as the base. If the first file has a variable that is not in the other files, it will be kept. If the other files have variables that are not in the first file, they will be added to the merged file.
+    /// If calibration data collides, the first file will be used as the base. 
+    /// If the first file has a variable that is not in the other files, it will be kept. 
+    /// If the other files have variables that are not in the first file, they will be added to the merged file.
     Merge {
         dcms: Vec<PathBuf>,
         #[arg(short, long, default_value = "merged.dcm")]
@@ -35,6 +37,16 @@ enum Commands {
     Update {
         dcms: Vec<PathBuf>,
         #[arg(short, long, default_value = "updated.dcm")]
+        output: PathBuf,
+    },
+    /// Filter the DCM files by a given regex pattern
+    Filter {
+        dcm: PathBuf,
+        #[arg(short, long)]
+        include: Option<Vec<String>>,
+        #[arg(short, long)]
+        exclude: Option<Vec<String>>,
+        #[arg(short, long, default_value = "filtered.dcm")]
         output: PathBuf,
     },
 }
@@ -61,6 +73,7 @@ fn main() {
             let others = &dcms[1..];
             let mut main_dcm = DcmData::new(&main);
             let other_dcms: Vec<DcmData> = others.iter().map(|p| DcmData::new(p)).collect();
+            println!("Merging {} DCM files into {}", dcms.len().to_string().on_white().red(), output.to_str().unwrap().on_white().green());
             merge_dcm_data(&mut main_dcm, other_dcms);
             main_dcm.render_to_file(&output);
         },
@@ -69,7 +82,19 @@ fn main() {
             let other_dcms: Vec<DcmData> = dcms.iter().skip(1).map(|p| DcmData::new(p)).collect();
             update_dcm_data(&mut dcm, other_dcms);
             dcm.render_to_file(&output);
-        }
+        },
+        Commands::Filter { dcm, include, exclude, output } => {
+            let mut dcm = DcmData::new(&dcm);
+            //dcm.filter_by_regex(&pattern);
+            if let Some(include_pats) = include {
+                dcm.filter_include(&include_pats);
+            } else if let Some(exclude_pats) = exclude {
+                dcm.filter_exclude(&exclude_pats);
+            } else {
+                panic!("Either include or exclude patterns must be provided");
+            }
+            dcm.render_to_file(&output);
+        },
     }
 }
 
@@ -78,10 +103,12 @@ mod tests {
     use rstest::*;
     use dcm_utils::DcmData;
     use std::fs::read_dir;
-    use log::{info, LevelFilter, SetLoggerError};
+    use log::{info, LevelFilter, SetLoggerError, warn};
     use std::path::Path;
     use approx::assert_relative_eq;
     use env_logger::Builder;
+    use ihex::Record;
+    use std::io::Read;
 
     #[fixture]
     #[once]
@@ -136,5 +163,48 @@ mod tests {
         let map1 = d.blocks.get("CDCBlnd_EOTFrntLim_M").unwrap();
         assert_eq!(map1.get_values().try_into_f64().unwrap().len(), 32);
         assert_eq!(*map1.get_values().try_into_f64().unwrap(), vec![10.0,60.0,60.0,50.0,0.0,0.0,0.0,0.0,10.0,60.0,60.0,50.0,0.0,0.0,0.0,0.0,10.0,60.0,60.0,50.0,0.0,0.0,0.0,0.0,10.0,60.0,60.0,50.0,0.0,0.0,0.0,0.0]);
+    }
+
+    #[rstest]
+    fn test_ihex() {
+        use std::io::{BufRead, BufReader};
+        let path = "./test-dcms/1.hex";
+        let file = std::fs::File::open(path).unwrap();
+        let buf = BufReader::new(file);
+        for line in buf.lines() {
+            let line = line.unwrap();
+            println!("Line: {}", line);
+            let _ = Record::from_record_string(line.as_str()).unwrap();
+            
+        }
+    }
+
+    #[rstest]
+    fn test_ihex_whole() {
+        use ihex::Reader;
+        let path = "./test-dcms/1.hex";
+        let mut file = std::fs::File::open(path).unwrap();
+        let mut s = String::new();
+        file.read_to_string(&mut s).unwrap();
+        s = s.replace("\r\n", "\n");
+        let mut reader = Reader::new(s.as_str());
+        let target_addr = 100u16;
+        let item = reader.find(|record| {
+            if let Ok(rec) = record {
+                if let Record::Data { offset, value } = rec {
+                    if offset <= &target_addr && offset + value.len() as u16 > target_addr {
+                        return true; // Stop skipping
+                    }
+                }
+            }
+            false
+        });
+        if let Some(Ok(record)) = item {
+            if let Record::Data { offset, value } = record {
+                println!("Record at address {:#x}: {:?}", offset, value);
+            }
+        } else {
+            println!("No record found at address {}", target_addr);
+        }
     }
 }
