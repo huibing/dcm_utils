@@ -54,6 +54,12 @@ impl FromStr for STUETZSTELLENVERTEILUNG {
     }
 }
 
+impl PartialEq for STUETZSTELLENVERTEILUNG {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+}
+
 impl STUETZSTELLENVERTEILUNG {
     pub fn from_f64(name: &str, desc: &str, value: &Vec<f64>, unit: &str) -> Self {
         let dim = value.len();

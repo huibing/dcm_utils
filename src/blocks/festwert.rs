@@ -67,3 +67,9 @@ impl FESTWERT {
         }
     }
 }
+
+impl PartialEq for FESTWERT {
+    fn eq(&self, other: &Self) -> bool {
+       self.value == other.value
+    }
+}

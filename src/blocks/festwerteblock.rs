@@ -58,6 +58,12 @@ impl FromStr for FESTWERTEBLOCK {
     }
 }
 
+impl PartialEq for FESTWERTEBLOCK {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+}
+
 impl FESTWERTEBLOCK {
     pub fn from_f64(name: String, value: Vec<f64>, desc: String, unit: String) -> Self {
         let dim = value.len();

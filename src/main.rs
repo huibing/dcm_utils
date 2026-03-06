@@ -103,7 +103,7 @@ mod tests {
     use rstest::*;
     use dcm_utils::DcmData;
     use std::fs::read_dir;
-    use log::{info, LevelFilter, SetLoggerError, warn};
+    use log::{info, LevelFilter, SetLoggerError};
     use std::path::Path;
     use approx::assert_relative_eq;
     use env_logger::Builder;
@@ -188,7 +188,7 @@ mod tests {
         file.read_to_string(&mut s).unwrap();
         s = s.replace("\r\n", "\n");
         let mut reader = Reader::new(s.as_str());
-        let target_addr = 100u16;
+        let target_addr = 0x4000u16;
         let item = reader.find(|record| {
             if let Ok(rec) = record {
                 if let Record::Data { offset, value } = rec {
@@ -201,10 +201,52 @@ mod tests {
         });
         if let Some(Ok(record)) = item {
             if let Record::Data { offset, value } = record {
-                println!("Record at address {:#x}: {:?}", offset, value);
+                println!("Record at address {:#x}: {:?} \n len: {}", offset, value, value.len());
             }
         } else {
             println!("No record found at address {}", target_addr);
+        }
+    }
+
+    #[rstest]
+    fn test_ihex_target() {
+        use ihex::Reader;
+        let path = "./test-dcms/1.hex";
+        let mut file = std::fs::File::open(path).unwrap();
+        let mut s = String::new();
+        file.read_to_string(&mut s).unwrap();
+        s = s.replace("\r\n", "\n");
+        let mut reader = Reader::new(s.as_str());
+        let target_addr = 0x80064020u32;
+        let upper_addr = (target_addr >> 16) as u16;
+        let lower_addr = (target_addr & 0xFFFF) as u16;
+        let item = reader.find(|record| {
+            if let Ok(rec) = record {
+                if let Record::ExtendedLinearAddress (addr) = rec {
+                    if addr == &upper_addr {
+                        return true; // Stop skipping
+                    }
+                } 
+            }
+        false});
+        if let Some(Ok(_)) = item {
+            let data = reader.find(|record| {
+                if let Ok(rec) = record {
+                    if let Record::Data { offset, value } = rec {
+                        if offset <= &lower_addr && offset + value.len() as u16 > lower_addr {
+                            return true; // Stop skipping
+                        }
+                    }
+                }
+                false
+            });
+            if let Some(Ok(record)) = data {
+                if let Record::Data { offset, value } = record {
+                    println!("Record at address {:#x}: {:?} \n len: {}", offset, value, value.len());
+                }
+            } else {
+                println!("No data record found at address {}", target_addr);
+            }
         }
     }
 }

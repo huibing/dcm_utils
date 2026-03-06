@@ -138,3 +138,11 @@ impl GRUPPENKENNFELD {
         }
     }
 }
+
+impl PartialEq for GRUPPENKENNFELD {
+    fn eq(&self, other: &Self) -> bool {
+        self.value_flat == other.value_flat && 
+        self.x_axis == other.x_axis && 
+        self.y_axis == other.y_axis
+    }
+}

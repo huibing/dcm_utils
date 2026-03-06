@@ -15,7 +15,6 @@ use log::{warn, info};
 use handlebars::*;
 use serde_json::json;
 use chrono::prelude::*;
-use serde::{Serialize, Deserialize};
 use regex::Regex;
 
 
@@ -241,15 +240,6 @@ pub fn update_dcm_data(main: &mut DcmData, others: Vec<DcmData>) -> () {
             }
         }
     }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct Axis {
-    name: String,
-    value: Vec<f64>,
-    desc: String,
-    unit: String,
-    dim: usize
 }
 
 

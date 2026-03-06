@@ -1,5 +1,6 @@
 use crate::DcmData;
 use crate::value::Value;
+use crate::block::Block;
 
 
 pub enum DcmDiff {
@@ -38,6 +39,55 @@ pub fn dcm_diff(left: &DcmData, right: &DcmData) -> Vec<DcmDiff> {
             diff.push(DcmDiff::New{
                 name: name.clone(),
             });
+        } else {
+            match (right_block, left.blocks.get(name).unwrap()) {
+                (Block::Constant(v1), Block::Constant(v2)) => {
+                    if v1 != v2 {
+                        diff.push(DcmDiff::Changed{
+                            name: name.clone(),
+                            old: v1.value.clone(),
+                            new: v2.value.clone(),
+                        });
+                    }
+                }
+                (Block::ConstantBlock(v1), Block::ConstantBlock(v2)) => {
+                    if v1 != v2 {
+                        diff.push(DcmDiff::Changed{
+                            name: name.clone(),
+                            old: v1.value.clone(),
+                            new: v2.value.clone(),
+                        });
+                    }
+                }
+                (Block::Table(v1), Block::Table(v2)) => {
+                    if v1 != v2 {
+                        diff.push(DcmDiff::Changed{
+                            name: name.clone(),
+                            old: v1.value.clone(),
+                            new: v2.value.clone(),
+                        });
+                    }
+                }
+                (Block::Distribution(v1), Block::Distribution(v2)) => {
+                    if v1 != v2 {
+                        diff.push(DcmDiff::Changed{
+                            name: name.clone(),
+                            old: v1.value.clone(),
+                            new: v2.value.clone(),
+                        });
+                    }
+                }
+                (Block::Map(v1), Block::Map(v2)) => {
+                    if v1 != v2 {
+                        diff.push(DcmDiff::Changed{
+                            name: name.clone(),
+                            old: v1.value_flat.clone(),
+                            new: v2.value_flat.clone(),
+                        });
+                    }
+                }
+                _ => {}
+            }
         }
     }
     diff

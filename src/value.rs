@@ -65,7 +65,12 @@ impl PartialEq for Value {
     
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Value::WERT(v1), Value::WERT(v2)) => v1 == v2,
+            (Value::WERT(v1), Value::WERT(v2)) => {
+                if v1.len() != v2.len() {
+                    return false;
+                }
+                v1.iter().zip(v2.iter()).all(|(a, b)| a == b)
+            },
             (Value::TEXT(v1), Value::TEXT(v2)) => v1 == v2,
             _ => false,
         }

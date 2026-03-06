@@ -67,6 +67,12 @@ impl FromStr for GRUPPENKENNLINIE {
     }
 }
 
+impl PartialEq for GRUPPENKENNLINIE {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value && self.axis == other.axis
+    }
+}
+
 impl GRUPPENKENNLINIE {
     pub fn from_f64(name: &str, value: &Vec<f64>, desc: &str, unit: &str, unit_x: &str, axis_var_name: &str, axis: &Vec<f64>) -> Self {
         let dim = value.len();
