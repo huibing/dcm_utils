@@ -33,7 +33,7 @@ impl FromStr for STUETZSTELLENVERTEILUNG {
                     if let ValueAttr::STX(w) = va{
                         value.extend_f64(w);
                     } else {
-                        return Err("unknown value type".into());
+                        return Err("unknown value type");
                     }
                 },
                 Ok(Attr::EmptyLine) => {},

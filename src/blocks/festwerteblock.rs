@@ -22,11 +22,11 @@ impl FromStr for FESTWERTEBLOCK {
         let mut attrs: Vec<StringAttr> = Vec::new();
         let mut lines = s.lines();
         let mut value: Value = Value::new();
-        let mut first_line_words = lines.nth(0).unwrap().trim().split_whitespace();
+        let mut first_line_words = lines.nth(0).unwrap().split_whitespace();
         let name = first_line_words.nth(1)
-                        .ok_or::<&str>("no name found".into())?.to_string();
+                        .ok_or::<&str>("no name found")?.to_string();
         let dim = first_line_words.next()
-                        .ok_or::<&str>("no dim found".into())?.parse::<usize>()?;
+                        .ok_or::<&str>("no dim found")?.parse::<usize>()?;
         for line in lines {
             match line.parse::<Attr>() {
                 Ok(Attr::StringAttr(sa)) => attrs.push(sa),

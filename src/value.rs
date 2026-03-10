@@ -2,11 +2,18 @@ use log::warn;
 use crate::attr::value_attr::ValueAttr;
 use std::error::Error;
 use serde::{Serialize, Serializer};
+use std::fmt;
 
 #[derive(Debug, Clone)]
 pub enum Value {
     WERT(Vec<f64>),
     TEXT(Vec<String>),
+}
+
+impl Default for Value {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Value {
@@ -95,6 +102,18 @@ impl Serialize for Value {
     }
 }
 
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::WERT(values) => {
+                write!(f, "WERT[{}]", values.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(", "))
+            }
+            Value::TEXT(values) => {
+                write!(f, "TEXT[{}]", values.join(", "))
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

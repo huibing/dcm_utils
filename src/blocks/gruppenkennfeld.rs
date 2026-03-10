@@ -4,10 +4,11 @@ use crate::attr::string_attr::StringAttr;
 use crate::attr::value_attr::ValueAttr;
 use crate::value::Value;
 use crate::AxisType;
-use log::warn;
+use log::{warn, info};
+use serde::Serialize;
 
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct GRUPPENKENNFELD {
     pub name: String,
     pub attrs: Vec<StringAttr>,
@@ -101,7 +102,7 @@ impl GRUPPENKENNFELD {
                          StringAttr::new("EINHEIT_W", unit_w),
                          StringAttr::new("EINHEIT_X", unit_x),
                          StringAttr::new("EINHEIT_Y", unit_y)];
-        let value = value.into_iter().map(|v| Value::WERT(v)).collect();
+        let value = value.into_iter().map(Value::WERT).collect();
         Self {
             value,
             dim,
@@ -124,7 +125,7 @@ impl GRUPPENKENNFELD {
                          StringAttr::new("EINHEIT_W", unit_w.as_str()),
                          StringAttr::new("EINHEIT_X", unit_x.as_str()),
                          StringAttr::new("EINHEIT_Y", unit_y.as_str())];
-        let value = value.into_iter().map(|v| Value::TEXT(v)).collect();
+        let value = value.into_iter().map(Value::TEXT).collect();
         Self {
             value,
             dim,
@@ -137,12 +138,43 @@ impl GRUPPENKENNFELD {
             value_flat
         }
     }
+
+    pub fn show_diff(&self, other: &Self) {
+        if self == other {
+            info!("GRUPPENKENNFELD {} unchanged", self.name);
+            return;
+        }
+        if self.value_flat != other.value_flat {
+            warn!("value_flat: {} != {}", self.value_flat, other.value_flat);
+        }
+        if self.x_axis != other.x_axis {
+            warn!("x_axis: {} != {}", from_vec_f64(self.x_axis.as_slice()), from_vec_f64(other.x_axis.as_slice()));
+        }
+        if self.y_axis != other.y_axis {
+            warn!("y_axis: {} != {}", from_vec_f64(self.y_axis.as_slice()), from_vec_f64(other.y_axis.as_slice()));
+        }
+    }
 }
 
 impl PartialEq for GRUPPENKENNFELD {
     fn eq(&self, other: &Self) -> bool {
         self.value_flat == other.value_flat && 
         self.x_axis == other.x_axis && 
-        self.y_axis == other.y_axis
+        self.y_axis == other.y_axis &&
+        self.x_axis_name == other.x_axis_name &&
+        self.y_axis_name == other.y_axis_name
     }
+}
+
+fn from_vec_f64(v: &[f64]) -> String {
+    let mut output = String::new();
+    output.push_str("[");
+    for (i, x) in v.iter().enumerate() {
+        if i > 0 {
+            output.push_str(",");
+        }
+        output.push_str(x.to_string().as_str());
+    }
+    output.push_str("]");
+    output
 }

@@ -44,7 +44,7 @@ fn dcm_vector_writer (h: &Helper, _: &Handlebars, _: &Context, _: &mut RenderCon
                 }
                 out.write("   ")?;
             }
-            if multi_line && line_num >= 1 && index <= line_num - 1 {
+            if multi_line && line_num >= 1 && index < line_num {
                 out.write("\r\n   ")?;
             }
         }
@@ -211,7 +211,7 @@ impl DcmData {
 }
 
 
-pub fn merge_dcm_data(main: &mut DcmData, others: Vec<DcmData>) -> () {
+pub fn merge_dcm_data(main: &mut DcmData, others: Vec<DcmData>) {
     /*
     if the same block name exists in both dcms, the block in the others will be discarded. 
     */
@@ -226,7 +226,7 @@ pub fn merge_dcm_data(main: &mut DcmData, others: Vec<DcmData>) -> () {
     }
 }
 
-pub fn update_dcm_data(main: &mut DcmData, others: Vec<DcmData>) -> () {
+pub fn update_dcm_data(main: &mut DcmData, others: Vec<DcmData>) {
     /*
     if the same block name exists in both dcms, the block in the others will be used to update main dcm. 
     */
@@ -302,7 +302,7 @@ pub fn write_dcm_data(data: &DcmData, file: &Path) {
                 let (dim_x, dim_y) = m.dim;
                 let value_block: Vec<(&value::Value, value::Value)> = m.value.iter().zip(m.y_axis.iter())
                                                     .map(|(x, y)| {
-                                                        (x, value::Value::WERT(vec![y.clone()]))
+                                                        (x, value::Value::WERT(vec![*y]))
                                                     }).collect();
                 maps.push(json!({
                     "name": key,

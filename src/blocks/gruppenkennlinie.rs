@@ -27,8 +27,8 @@ impl FromStr for GRUPPENKENNLINIE {
         let mut axis = Vec::new();
         let mut axis_var_name = String::from("no_axis_var_name_found");
         let first_line = lines.next().ok_or("no first line found in GRUPPENKENNLINIE")?;
-        let name = first_line.trim().split_whitespace().nth(1).ok_or("no name found")?.to_string();
-        let dim = first_line.trim().split_whitespace().nth(2).ok_or("no dim found")?.parse::<usize>().unwrap();
+        let name = first_line.split_whitespace().nth(1).ok_or("no name found")?.to_string();
+        let dim = first_line.split_whitespace().nth(2).ok_or("no dim found")?.parse::<usize>().unwrap();
         for line in lines {
             match line.parse::<Attr>() {
                 Ok(Attr::StringAttr(sa)) => attrs.push(sa),
@@ -41,7 +41,7 @@ impl FromStr for GRUPPENKENNLINIE {
                         value = Value::TEXT(t);
                         info!("found text value: {:?}", value);
                     } else {
-                        return Err("unknown value type".into());
+                        return Err("unknown value type");
                     }
                 },
                 Ok(Attr::AxisVar(av)) => {

@@ -1,10 +1,11 @@
 use std::str::FromStr;
 use crate::AxisType;
+use serde::Serialize;
 
-const STRING_ATTR_IDENTIFIER: [&'static str; 4] = ["LANGNAME", "EINHEIT_X", "EINHEIT_Y", "EINHEIT_W"];
+const STRING_ATTR_IDENTIFIER: [&str; 4] = ["LANGNAME", "EINHEIT_X", "EINHEIT_Y", "EINHEIT_W"];
 
 #[allow(dead_code)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct StringAttr {
     pub identifier: String,
     pub value: String,
@@ -20,8 +21,7 @@ impl FromStr for StringAttr {
         }
         let identifier = words.0.to_string();
         let value = words.1.strip_prefix("\"")         // string values are enclosed in double quotes
-                .and_then(|s| s.strip_suffix("\""))
-                .and_then(|s| Some(s.to_string()))
+                .and_then(|s| s.strip_suffix("\"")).map(|s| s.to_string())
                 .ok_or("Invalid string attribute")?;
         Ok(StringAttr { identifier, value })
     }
@@ -42,11 +42,11 @@ pub fn eval_string_attr(v: &Vec<StringAttr>, identifier: &str) -> Option<String>
 }
 
 pub fn is_string_attr(s: &str) -> bool {
-    s.trim().split_whitespace().nth(0).map(|s| STRING_ATTR_IDENTIFIER.contains(&s)).unwrap_or(false)
+    s.split_whitespace().next().map(|s| STRING_ATTR_IDENTIFIER.contains(&s)).unwrap_or(false)
 }
 
 pub fn is_axis_var(s: &str) -> bool {
-    s.trim().split_whitespace().next()
+    s.split_whitespace().next()
         .map(|s| s == "*SSTX" || s == "*SSTY").unwrap_or(false)
 }
 
@@ -59,7 +59,7 @@ impl FromStr for AxisVar {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let words = s.trim().split_whitespace().collect::<Vec<&str>>();
+        let words = s.split_whitespace().collect::<Vec<&str>>();
         if words.len() != 2 {
             return Err("Invalid axis variable");
         }

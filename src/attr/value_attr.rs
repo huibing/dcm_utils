@@ -70,12 +70,11 @@ pub fn concatenate(left: &ValueAttr, right: &ValueAttr) -> Result<Vec<f64>, Dyno
 
 
 fn get_line_first_word(s: &str) -> Option<&str> {
-    s.split_once(" ")
-            .and_then(|(first, _)| Some(first))
+    s.split_once(" ").map(|(first, _)| first)
 }
 
 pub fn is_value_attr_line(s: &str) -> bool {
-    s.trim().split_whitespace().nth(0)
+    s.split_whitespace().next()
         .map(|word| VALUE_ATTR_IDENTIFIER.contains(&word))
         .unwrap_or(false)
 }

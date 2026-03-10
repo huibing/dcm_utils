@@ -14,7 +14,6 @@ use colored::Colorize;
 #[command(name = "DCM Utils")]
 #[command(about = "A tool to merge and update DCM files", long_about = None)]
 #[command(version = "1.0")]
-
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -71,7 +70,7 @@ fn main() {
         Commands::Merge { dcms, output } => {
             let main = dcms.first().expect("At least one DCM file is required");
             let others = &dcms[1..];
-            let mut main_dcm = DcmData::new(&main);
+            let mut main_dcm = DcmData::new(main);
             let other_dcms: Vec<DcmData> = others.iter().map(|p| DcmData::new(p)).collect();
             println!("Merging {} DCM files into {}", dcms.len().to_string().on_white().red(), output.to_str().unwrap().on_white().green());
             merge_dcm_data(&mut main_dcm, other_dcms);

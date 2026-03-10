@@ -19,8 +19,8 @@ impl FromStr for FESTWERT {
         let mut attrs: Vec<StringAttr> = Vec::new();
         let mut lines = s.lines();
         let mut value: Value = Value::new();
-        let name = lines.nth(0).unwrap().trim().split_whitespace().last()
-                        .ok_or::<&str>("no name found".into())?.to_string();
+        let name = lines.nth(0).unwrap().split_whitespace().last()
+                        .ok_or::<&str>("no name found")?.to_string();
         for line in lines {
             match line.parse::<Attr>() {
                 Ok(Attr::StringAttr(sa)) => attrs.push(sa),
