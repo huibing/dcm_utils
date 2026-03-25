@@ -25,22 +25,62 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Merge multiple DCM files into one using the first file as the base
-    /// If calibration data collides, the first file will be used as the base. 
-    /// If the first file has a variable that is not in the other files, it will be kept. 
+    ///
+    /// If calibration data collides, the first file will be used as the base.
+    /// If the first file has a variable that is not in the other files, it will be kept.
     /// If the other files have variables that are not in the first file, they will be added to the merged file.
+    ///
+    /// ## Examples
+    ///
+    /// Merge two DCM files:
+    ///
+    ///     dcm_utils merge base.DCM additions.DCM
+    ///
+    /// Merge multiple files with custom output name:
+    ///
+    ///     dcm_utils merge base.DCM part1.DCM part2.DCM part3.DCM -o complete.DCM
     Merge {
         dcms: Vec<PathBuf>,
         #[arg(short, long, default_value = "merged.dcm")]
         output: PathBuf,
     },
-    /// update the first DCM file with the data from the other DCM files
+    /// Update the first DCM file with the data from the other DCM files
+    ///
     /// If calibration variables does not exist in the first DCM file, they will be discarded.
+    /// New variables from update files are not added; only existing variables are updated.
+    ///
+    /// ## Examples
+    ///
+    /// Update base file with new values from another file:
+    ///
+    ///     dcm_utils update base.DCM new_values.DCM
+    ///
+    /// Apply multiple update files sequentially:
+    ///
+    ///     dcm_utils update base.DCM updates1.DCM updates2.DCM -o final.DCM
     Update {
         dcms: Vec<PathBuf>,
         #[arg(short, long, default_value = "updated.dcm")]
         output: PathBuf,
     },
     /// Filter the DCM files by a given regex pattern
+    ///
+    /// Include only variables matching the given patterns, or exclude variables that match.
+    /// Either --include or --exclude must be provided, but not both.
+    ///
+    /// ## Examples
+    ///
+    /// Include only variables starting with "VAR_":
+    ///
+    ///     dcm_utils filter input.DCM --include "VAR_.*"
+    ///
+    /// Include multiple patterns:
+    ///
+    ///     dcm_utils filter input.DCM --include "VAR_.*" "CFG_.*" -o subset.DCM
+    ///
+    /// Exclude temporary/test variables:
+    ///
+    ///     dcm_utils filter input.DCM --exclude ".*Temp.*" ".*Test.*" -o clean.DCM
     Filter {
         dcm: PathBuf,
         #[arg(short, long)]
@@ -51,6 +91,23 @@ enum Commands {
         output: PathBuf,
     },
     /// Compare two DCM files and show differences
+    ///
+    /// Generates a detailed comparison showing new, deleted, and changed variables.
+    /// Results are printed to console and saved as JSON.
+    ///
+    /// ## Examples
+    ///
+    /// Compare two files with default output:
+    ///
+    ///     dcm_utils diff original.DCM modified.DCM
+    ///
+    /// Specify custom output file:
+    ///
+    ///     dcm_utils diff base.DCM new_version.DCM -o changes.json
+    ///
+    /// Review the JSON output for detailed changes:
+    ///
+    ///     cat diff.json | jq '.[] | select(.Changed)'
     Diff {
         /// Original/base DCM file
         original: PathBuf,
