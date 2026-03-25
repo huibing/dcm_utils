@@ -36,8 +36,8 @@ DCM Utils is a powerful utility designed for automotive engineers working with E
 
 ```bash
 # Clone the repository
-git clone <repository-url>
-cd dcm_parse
+git clone git@github.com:huibing/dcm_utils.git
+cd dcm_utils
 
 # Build in debug mode
 cargo build
@@ -103,7 +103,7 @@ Filter DCM variables using include or exclude regex patterns.
 
 ```bash
 # Include only variables matching patterns
-dcm_utils filter input.DCM --include "CDC.*" "IVE.*" -o filtered.DCM
+dcm_utils filter input.DCM --include "VAR.*" "CFG.*" -o filtered.DCM
 
 # Exclude variables matching patterns
 dcm_utils filter input.DCM --exclude "Temp.*" "Test.*" -o filtered.DCM
@@ -163,17 +163,17 @@ KONSERVIERUNG_FORMAT 2.0
 
 * no memory layouts specified
 
-FESTWERT CDCAct_DmprCtrlEna_C
-   LANGNAME "Damper control enable flag"
+FESTWERT VAR_0001
+   LANGNAME "Control enable flag"
    EINHEIT_W "unitless"
    WERT 1.0000000000000000
 END
 
-GRUPPENKENNLINIE CDCAct_DmprICmdFrnt_T 9
-   LANGNAME "Damping ratio to damper current conversion for front dampers"
+GRUPPENKENNLINIE VAR_0002 9
+   LANGNAME "Calibration lookup table"
    EINHEIT_X "percent"
    EINHEIT_W "mA"
-*SSTX	CDCAct_RatDmpg_Ax
+*SSTX	VAR_0003
    ST/X   0.0000000000000000   12.5000000000000000   25.0000000000000000
    ST/X   37.5000000000000000   50.0000000000000000   62.5000000000000000
    WERT   320.0000000000000000   480.0000000000000000   640.0000000000000000
@@ -294,8 +294,8 @@ dcm_utils merge base.DCM additions1.DCM additions2.DCM -o complete.DCM
 ### Workflow: Extract Specific Calibration Sets
 
 ```bash
-# Extract all CDC (Continuous Damping Control) parameters
-dcm_utils filter large_dataset.DCM --include "CDC.*" -o cdc_only.DCM
+# Extract all specific parameters
+dcm_utils filter large_dataset.DCM --include "VAR.*" -o var_only.DCM
 
 # Extract all parameters except temporary/test ones
 dcm_utils filter dataset.DCM --exclude ".*Temp.*" ".*Test.*" -o clean.DCM
