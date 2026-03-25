@@ -61,9 +61,9 @@ impl PartialEq for STUETZSTELLENVERTEILUNG {
 }
 
 impl STUETZSTELLENVERTEILUNG {
-    pub fn from_f64(name: &str, desc: &str, value: &Vec<f64>, unit: &str) -> Self {
+    pub fn from_f64(name: &str, desc: &str, value: &[f64], unit: &str) -> Self {
         let dim = value.len();
-        let value = Value::WERT(value.clone());
+        let value = Value::WERT(value.to_owned());
         Self {
             name: String::from(name),
             attrs: vec![StringAttr::new("LANGNAME", desc),

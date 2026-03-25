@@ -168,13 +168,13 @@ impl PartialEq for GRUPPENKENNFELD {
 
 fn from_vec_f64(v: &[f64]) -> String {
     let mut output = String::new();
-    output.push_str("[");
+    output.push('[');
     for (i, x) in v.iter().enumerate() {
         if i > 0 {
-            output.push_str(",");
+            output.push(',');
         }
         output.push_str(x.to_string().as_str());
     }
-    output.push_str("]");
+    output.push(']');
     output
 }

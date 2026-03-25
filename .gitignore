@@ -3,8 +3,13 @@
 Cargo.lock
 
 .vscode
+.claude
 /output/
 
-*.dcm
-*.DCM
-*.hex
+# Ignore DCM files in root directory only
+/*.dcm
+/*.DCM
+
+# Ignore HEX files in root directory only, but keep test-dcms
+/*.hex
+!test-dcms/*.hex

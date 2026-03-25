@@ -54,7 +54,7 @@ impl From<ValueAttr> for Vec<f64> {
             ValueAttr::WERT(v) => v,
             ValueAttr::STX(v) => v,
             ValueAttr::STY(v) => v,
-            ValueAttr::TEXT(_) => vec![std::f64::NAN]   // not a number
+            ValueAttr::TEXT(_) => vec![f64::NAN]   // not a number
         }
     }
 }

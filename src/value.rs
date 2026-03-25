@@ -29,6 +29,13 @@ impl Value {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Value::WERT(v) => v.is_empty(),
+            Value::TEXT(v) => v.is_empty(),
+        }
+    }
+
     pub fn extend_f64(&mut self, value: Vec<f64>) {
         match self {
             Value::WERT(v) => v.extend(value),

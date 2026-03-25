@@ -37,7 +37,7 @@ impl StringAttr {
 }
 
 
-pub fn eval_string_attr(v: &Vec<StringAttr>, identifier: &str) -> Option<String> {
+pub fn eval_string_attr(v: &[StringAttr], identifier: &str) -> Option<String> {
     v.iter().find(|a| a.identifier == identifier).map(|a| a.value.clone())
 }
 

@@ -4,6 +4,8 @@ pub mod blocks;
 pub mod value;
 pub mod diff;
 
+pub use diff::{DcmDiff, dcm_diff};
+
 use std::env;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -181,7 +183,7 @@ impl DcmData {
         write_dcm_data(self, file);
     }
 
-    pub fn filter_include(&mut self, include_pats: &Vec<String>) {
+    pub fn filter_include(&mut self, include_pats: &[String]) {
         // filter blocks by regex pattern: only include blocks that match one of the patterns
         let patterns = include_pats.iter()
             .map(|p| Regex::new(p).unwrap())
@@ -195,7 +197,7 @@ impl DcmData {
         self.blocks.retain(|k, _| keys_to_keep.contains(k));
     }
 
-    pub fn filter_exclude(&mut self, exclude_pats: &Vec<String>) {
+    pub fn filter_exclude(&mut self, exclude_pats: &[String]) {
         // filter blocks by regex pattern: exclude blocks that match one of the patterns
         let patterns = exclude_pats.iter()
             .map(|p| Regex::new(p).unwrap())
@@ -354,7 +356,7 @@ mod tests {
 
     #[rstest]
     fn test_dcm_write() {
-        let file_to_read = "./test-dcms/NT3_ALPS_Blanc-AWDAIR_Zone-Lite_XM_BL0100_20250220_LB_1.DCM";
+        let file_to_read = "./test-dcms/test_sample_673.DCM";
         let file_to_write = "./output/test.DCM";
         let dcm_data = DcmData::new(Path::new(file_to_read));
         let path = Path::new(file_to_write);

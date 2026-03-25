@@ -74,14 +74,14 @@ impl PartialEq for GRUPPENKENNLINIE {
 }
 
 impl GRUPPENKENNLINIE {
-    pub fn from_f64(name: &str, value: &Vec<f64>, desc: &str, unit: &str, unit_x: &str, axis_var_name: &str, axis: &Vec<f64>) -> Self {
+    pub fn from_f64(name: &str, value: &[f64], desc: &str, unit: &str, unit_x: &str, axis_var_name: &str, axis: &[f64]) -> Self {
         let dim = value.len();
-        let value = Value::WERT(value.clone());
+        let value = Value::WERT(value.to_owned());
         Self {
             name: name.to_string(),
             attrs: vec![StringAttr::new("LANGNAME", desc), StringAttr::new("EINHEIT_W", unit), StringAttr::new("EINHEIT_X", unit_x)],
             value,
-            axis: axis.clone(),
+            axis: axis.to_owned(),
             axis_var_name: axis_var_name.to_string(),
             dim,
         }
