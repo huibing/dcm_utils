@@ -80,7 +80,7 @@ impl PartialEq for Block {
         match (self, other) {
             (Block::Constant(c1), Block::Constant(c2)) => c1.value == c2.value,
             (Block::ConstantBlock(b1), Block::ConstantBlock(b2)) => b1.value == b2.value,
-            (Block::Table(t1), Block::Table(t2)) => t1.value == t2.value && t1.axis == t2.axis,
+            (Block::Table(t1), Block::Table(t2)) => t1.value == t2.value && t1.axis == t2.axis && t1.axis_var_name == t2.axis_var_name,
             (Block::Distribution(d1), Block::Distribution(d2)) => d1.value == d2.value ,
             (Block::Map(m1), Block::Map(m2)) => m1.value_flat == m2.value_flat && m1.x_axis == m2.x_axis && m1.y_axis == m2.y_axis,
             _ => false,

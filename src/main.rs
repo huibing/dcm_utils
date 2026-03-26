@@ -1,7 +1,7 @@
 use dcm_utils::{
     DcmData,
     DcmDiff,
-    dcm_diff,
+    dcm_diff_with_metadata,
     merge_dcm_data,
     update_dcm_data,
 };
@@ -167,23 +167,50 @@ fn main() {
             let original_dcm = DcmData::new(&original);
             let modified_dcm = DcmData::new(&modified);
 
-            let diff = dcm_diff(&original_dcm, &modified_dcm);
+            // Use enhanced diff with metadata
+            let result = dcm_diff_with_metadata(&original_dcm, &modified_dcm, &original, &modified);
 
             // Print summary
-            let new_count = diff.iter().filter(|d| matches!(d, DcmDiff::New { .. })).count();
-            let deleted_count = diff.iter().filter(|d| matches!(d, DcmDiff::Deleted { .. })).count();
-            let changed_count = diff.iter().filter(|d| matches!(d, DcmDiff::Changed { .. } | DcmDiff::ChangedMap { .. })).count();
-
             println!("{}", "=== DCM Diff Results ===".bold());
-            println!("New blocks: {}", new_count.to_string().green());
-            println!("Deleted blocks: {}", deleted_count.to_string().red());
-            println!("Changed blocks: {}", changed_count.to_string().yellow());
-            println!("Total differences: {}", diff.len().to_string().bold());
+            println!("Original: {}", result.metadata.original_file.cyan());
+            println!("Modified: {}", result.metadata.modified_file.cyan());
+            println!("Timestamp: {}\n", result.metadata.timestamp.dimmed());
 
-            // Write diff to JSON file
-            let json = serde_json::to_string_pretty(&diff).unwrap();
+            println!("New blocks: {}", result.summary.new_count.to_string().green());
+            println!("Deleted blocks: {}", result.summary.deleted_count.to_string().red());
+            println!("Changed blocks: {}", result.summary.changed_count.to_string().yellow());
+            println!("Total differences: {}\n", result.summary.total.to_string().bold());
+
+            // Print detailed differences to terminal
+            if !result.differences.is_empty() {
+                println!("{}", "=== Detailed Differences ===".bold());
+                for diff in &result.differences {
+                    match diff {
+                        DcmDiff::New { name, description } => {
+                            println!("{} {}: {}", "[NEW]".green().bold(), name.green(),
+                                description.as_ref().unwrap_or(&"".to_string()));
+                        }
+                        DcmDiff::Deleted { name, description } => {
+                            println!("{} {}: {}", "[DEL]".red().bold(), name.red(),
+                                description.as_ref().unwrap_or(&"".to_string()));
+                        }
+                        DcmDiff::Changed { name, description, .. } => {
+                            println!("{} {}: {}", "[CHG]".yellow().bold(), name.yellow(),
+                                description.as_ref().unwrap_or(&"values changed".to_string()));
+                        }
+                        DcmDiff::ChangedMap { name, description, .. } => {
+                            println!("{} {}: {}", "[CHG]".yellow().bold(), name.yellow(),
+                                description.as_ref().unwrap_or(&"map changed".to_string()));
+                        }
+                    }
+                }
+                println!();
+            }
+
+            // Write diff result to JSON file (includes metadata and summary)
+            let json = serde_json::to_string_pretty(&result).unwrap();
             std::fs::write(&output, json).expect("Failed to write diff output");
-            println!("\nDiff details written to: {}", output.display().to_string().blue());
+            println!("Diff details written to: {}", output.display().to_string().blue());
         },
     }
 }

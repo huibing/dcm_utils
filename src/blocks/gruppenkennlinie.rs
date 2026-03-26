@@ -69,7 +69,9 @@ impl FromStr for GRUPPENKENNLINIE {
 
 impl PartialEq for GRUPPENKENNLINIE {
     fn eq(&self, other: &Self) -> bool {
-        self.value == other.value && self.axis == other.axis
+        self.value == other.value &&
+        self.axis == other.axis &&
+        self.axis_var_name == other.axis_var_name
     }
 }
 

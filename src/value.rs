@@ -1,7 +1,8 @@
 use log::warn;
 use crate::attr::value_attr::ValueAttr;
 use std::error::Error;
-use serde::{Serialize, Serializer};
+use serde::{Serialize, Serializer, Deserialize, Deserializer};
+use serde::de::{self, Visitor, SeqAccess};
 use std::fmt;
 
 #[derive(Debug, Clone)]
@@ -119,6 +120,56 @@ impl fmt::Display for Value {
                 write!(f, "TEXT[{}]", values.join(", "))
             }
         }
+    }
+}
+
+impl<'de> Deserialize<'de> for Value {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct ValueVisitor;
+
+        impl<'de> Visitor<'de> for ValueVisitor {
+            type Value = Value;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a sequence of numbers or strings")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                // Try to deserialize as Vec<f64> first
+                let mut numbers: Vec<f64> = Vec::new();
+                let mut strings: Vec<String> = Vec::new();
+                let mut is_text = false;
+
+                while let Some(value) = seq.next_element::<serde_json::Value>()? {
+                    if let Some(num) = value.as_f64() {
+                        if !is_text {
+                            numbers.push(num);
+                        } else {
+                            strings.push(value.to_string());
+                        }
+                    } else if let Some(s) = value.as_str() {
+                        is_text = true;
+                        strings.push(s.to_string());
+                    } else {
+                        return Err(de::Error::custom("expected number or string"));
+                    }
+                }
+
+                if is_text {
+                    Ok(Value::TEXT(strings))
+                } else {
+                    Ok(Value::WERT(numbers))
+                }
+            }
+        }
+
+        deserializer.deserialize_seq(ValueVisitor)
     }
 }
 

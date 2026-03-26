@@ -4,7 +4,7 @@ pub mod blocks;
 pub mod value;
 pub mod diff;
 
-pub use diff::{DcmDiff, dcm_diff};
+pub use diff::{DcmDiff, DcmDiffResult, DiffMetadata, DiffSummary, MapChangeDetail, MapValues, MapAttr, dcm_diff, dcm_diff_with_metadata};
 
 use std::env;
 use std::fs::File;
