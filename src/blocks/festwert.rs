@@ -1,26 +1,31 @@
-use std::str::FromStr;
-use std::error::Error;
 use crate::attr::attr_arbitor::Attr;
 use crate::attr::string_attr::StringAttr;
 use crate::value::Value;
-use log::{warn, info};
+use log::{info, warn};
+use std::error::Error;
+use std::str::FromStr;
 
 #[derive(Clone)]
 pub struct FESTWERT {
     pub attrs: Vec<StringAttr>,
-    pub value: Value,       // for FESTWERT, only one value in the vector
+    pub value: Value, // for FESTWERT, only one value in the vector
     pub name: String,
 }
 
 impl FromStr for FESTWERT {
-    type Err=Box<dyn Error>;
+    type Err = Box<dyn Error>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut attrs: Vec<StringAttr> = Vec::new();
         let mut lines = s.lines();
         let mut value: Value = Value::new();
-        let name = lines.nth(0).unwrap().split_whitespace().last()
-                        .ok_or::<&str>("no name found")?.to_string();
+        let name = lines
+            .nth(0)
+            .unwrap()
+            .split_whitespace()
+            .last()
+            .ok_or::<&str>("no name found")?
+            .to_string();
         for line in lines {
             match line.parse::<Attr>() {
                 Ok(Attr::StringAttr(sa)) => attrs.push(sa),
@@ -37,14 +42,9 @@ impl FromStr for FESTWERT {
         if value.is_empty() {
             return Err(format!("no value found in FESTWERT {name}").into());
         }
-        Ok(FESTWERT {
-            name,
-            attrs,
-            value
-        })
+        Ok(FESTWERT { name, attrs, value })
     }
 }
-
 
 impl FESTWERT {
     pub fn from_f64(name: String, value: f64, desc: String, unit: String) -> Self {
@@ -52,8 +52,10 @@ impl FESTWERT {
         Self {
             name,
             value,
-            attrs: vec![StringAttr::new("LANGNAME", desc.as_str()),
-                        StringAttr::new("EINHEIT_W", unit.as_str())],
+            attrs: vec![
+                StringAttr::new("LANGNAME", desc.as_str()),
+                StringAttr::new("EINHEIT_W", unit.as_str()),
+            ],
         }
     }
 
@@ -62,14 +64,16 @@ impl FESTWERT {
         Self {
             name,
             value,
-            attrs: vec![StringAttr::new("LANGNAME", desc.as_str()),
-                        StringAttr::new("EINHEIT_W", unit.as_str())],
+            attrs: vec![
+                StringAttr::new("LANGNAME", desc.as_str()),
+                StringAttr::new("EINHEIT_W", unit.as_str()),
+            ],
         }
     }
 }
 
 impl PartialEq for FESTWERT {
     fn eq(&self, other: &Self) -> bool {
-       self.value == other.value
+        self.value == other.value
     }
 }

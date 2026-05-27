@@ -1,8 +1,8 @@
-use std::str::FromStr;
 use std::error::Error;
+use std::str::FromStr;
 
 type DynoError = Box<dyn Error>;
-const VALUE_ATTR_IDENTIFIER:[&str; 4] = ["ST/X", "ST/Y", "WERT", "TEXT"];
+const VALUE_ATTR_IDENTIFIER: [&str; 4] = ["ST/X", "ST/Y", "WERT", "TEXT"];
 
 pub enum ValueAttr {
     WERT(Vec<f64>),
@@ -10,7 +10,6 @@ pub enum ValueAttr {
     STY(Vec<f64>),
     TEXT(Vec<String>),
 }
-
 
 impl FromStr for ValueAttr {
     type Err = DynoError;
@@ -23,27 +22,34 @@ impl FromStr for ValueAttr {
                 for val in line.split_whitespace().skip(1) {
                     values.push(val.parse()?);
                 }
-                Ok(Self::WERT(values))},
+                Ok(Self::WERT(values))
+            }
             Some("ST/X") => {
                 let mut values = Vec::<f64>::new();
                 for val in line.split_whitespace().skip(1) {
                     values.push(val.parse()?);
                 }
-                Ok(Self::STX(values))},
+                Ok(Self::STX(values))
+            }
             Some("ST/Y") => {
                 let mut values = Vec::<f64>::new();
                 for val in line.split_whitespace().skip(1) {
                     values.push(val.parse()?);
                 }
-                Ok(Self::STY(values))},
+                Ok(Self::STY(values))
+            }
             Some("TEXT") => {
                 let mut values = Vec::<String>::new();
                 for val in line.split_whitespace().skip(1) {
-                    let text = val.strip_prefix("\"").and_then(|s| s.strip_suffix("\"")).unwrap_or(val);
+                    let text = val
+                        .strip_prefix("\"")
+                        .and_then(|s| s.strip_suffix("\""))
+                        .unwrap_or(val);
                     values.push(text.to_string());
                 }
-                Ok(Self::TEXT(values))},
-            _ => Err("Unknown line format".into())
+                Ok(Self::TEXT(values))
+            }
+            _ => Err("Unknown line format".into()),
         }
     }
 }
@@ -54,7 +60,7 @@ impl From<ValueAttr> for Vec<f64> {
             ValueAttr::WERT(v) => v,
             ValueAttr::STX(v) => v,
             ValueAttr::STY(v) => v,
-            ValueAttr::TEXT(_) => vec![f64::NAN]   // not a number
+            ValueAttr::TEXT(_) => vec![f64::NAN], // not a number
         }
     }
 }
@@ -64,17 +70,17 @@ pub fn concatenate(left: &ValueAttr, right: &ValueAttr) -> Result<Vec<f64>, Dyno
         (ValueAttr::WERT(l), ValueAttr::WERT(r)) => Ok(l.iter().chain(r.iter()).cloned().collect()),
         (ValueAttr::STX(l), ValueAttr::STX(r)) => Ok(l.iter().chain(r.iter()).cloned().collect()),
         (ValueAttr::STY(l), ValueAttr::STY(r)) => Ok(l.iter().chain(r.iter()).cloned().collect()),
-        _ => Err("Cannot concatenate different types of value attributes".into())
+        _ => Err("Cannot concatenate different types of value attributes".into()),
     }
 }
-
 
 fn get_line_first_word(s: &str) -> Option<&str> {
     s.split_once(" ").map(|(first, _)| first)
 }
 
 pub fn is_value_attr_line(s: &str) -> bool {
-    s.split_whitespace().next()
+    s.split_whitespace()
+        .next()
         .map(|word| VALUE_ATTR_IDENTIFIER.contains(&word))
         .unwrap_or(false)
 }
@@ -87,7 +93,7 @@ mod tests {
     #[rstest]
     fn test_parse_value_attr() -> Result<(), DynoError> {
         let line = "WERT 1.0 2.0 3.0";
-        let attr:Vec<f64> = line.parse::<ValueAttr>()?.into();
+        let attr: Vec<f64> = line.parse::<ValueAttr>()?.into();
         assert_eq!(attr, vec![1.0, 2.0, 3.0]);
         Ok(())
     }

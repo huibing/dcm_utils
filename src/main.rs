@@ -1,18 +1,13 @@
-use dcm_utils::{
-    DcmData,
-    DcmDiff,
-    dcm_diff_with_metadata,
-    validate_and_build_sources,
-    merge_dcm_data,
-    update_dcm_data,
-    gen,
-};
-use clap::{Parser, Subcommand};
-use std::path::PathBuf;
-use env_logger::Builder;
 use chrono::Local;
-use std::io::Write;
+use clap::{Parser, Subcommand};
 use colored::Colorize;
+use dcm_utils::{
+    dcm_diff_with_metadata, gen, merge_dcm_data, update_dcm_data, validate_and_build_sources,
+    DcmData, DcmDiff,
+};
+use env_logger::Builder;
+use std::io::Write;
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(name = "DCM Utils")]
@@ -22,7 +17,6 @@ struct Cli {
     #[command(subcommand)]
     command: Commands,
 }
-
 
 #[derive(Subcommand)]
 enum Commands {
@@ -155,21 +149,23 @@ enum Commands {
     },
 }
 
-
 fn main() {
     let mut logger = Builder::new();
-    logger.format( |buf, record| {
+    logger.format(|buf, record| {
         let now = Local::now();
         let timestamp = now.format("%Y-%m-%d %H:%M:%S").to_string();
         writeln!(
-                buf,
-                "[{}] [{}] - {}",
-                timestamp,
-                record.level(),
-                record.args()
-            )
+            buf,
+            "[{}] [{}] - {}",
+            timestamp,
+            record.level(),
+            record.args()
+        )
     });
-    logger.filter_level(log::LevelFilter::Info).try_init().unwrap();
+    logger
+        .filter_level(log::LevelFilter::Info)
+        .try_init()
+        .unwrap();
     let cli = Cli::parse();
     match cli.command {
         Commands::Merge { dcms, output } => {
@@ -177,17 +173,26 @@ fn main() {
             let others = &dcms[1..];
             let mut main_dcm = DcmData::new(main);
             let other_dcms: Vec<DcmData> = others.iter().map(|p| DcmData::new(p)).collect();
-            println!("Merging {} DCM files into {}", dcms.len().to_string().on_white().red(), output.to_str().unwrap().on_white().green());
+            println!(
+                "Merging {} DCM files into {}",
+                dcms.len().to_string().on_white().red(),
+                output.to_str().unwrap().on_white().green()
+            );
             merge_dcm_data(&mut main_dcm, other_dcms);
             main_dcm.render_to_file(&output);
-        },
+        }
         Commands::Update { dcms, output } => {
             let mut dcm = DcmData::new(&dcms[0]);
             let other_dcms: Vec<DcmData> = dcms.iter().skip(1).map(|p| DcmData::new(p)).collect();
             update_dcm_data(&mut dcm, other_dcms);
             dcm.render_to_file(&output);
-        },
-        Commands::Filter { dcm, include, exclude, output } => {
+        }
+        Commands::Filter {
+            dcm,
+            include,
+            exclude,
+            output,
+        } => {
             let mut dcm = DcmData::new(&dcm);
             //dcm.filter_by_regex(&pattern);
             if let Some(include_pats) = include {
@@ -198,24 +203,27 @@ fn main() {
                 panic!("Either include or exclude patterns must be provided");
             }
             dcm.render_to_file(&output);
-        },
-        Commands::Diff { dcm, a2l, hex, output } => {
+        }
+        Commands::Diff {
+            dcm,
+            a2l,
+            hex,
+            output,
+        } => {
             let (left_src, right_src) = validate_and_build_sources(&dcm, &a2l, &hex)
                 .unwrap_or_else(|e| {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
                 });
 
-            let left_data = left_src.load()
-                .unwrap_or_else(|e| {
-                    eprintln!("Error loading {}: {}", left_src.label(), e);
-                    std::process::exit(1);
-                });
-            let right_data = right_src.load()
-                .unwrap_or_else(|e| {
-                    eprintln!("Error loading {}: {}", right_src.label(), e);
-                    std::process::exit(1);
-                });
+            let left_data = left_src.load().unwrap_or_else(|e| {
+                eprintln!("Error loading {}: {}", left_src.label(), e);
+                std::process::exit(1);
+            });
+            let right_data = right_src.load().unwrap_or_else(|e| {
+                eprintln!("Error loading {}: {}", right_src.label(), e);
+                std::process::exit(1);
+            });
 
             let result = dcm_diff_with_metadata(&left_data, &right_data, &left_src, &right_src);
 
@@ -225,10 +233,22 @@ fn main() {
             println!("Right: {}", result.metadata.right_label.cyan());
             println!("Timestamp: {}\n", result.metadata.timestamp.dimmed());
 
-            println!("New blocks: {}", result.summary.new_count.to_string().green());
-            println!("Deleted blocks: {}", result.summary.deleted_count.to_string().red());
-            println!("Changed blocks: {}", result.summary.changed_count.to_string().yellow());
-            println!("Total differences: {}\n", result.summary.total.to_string().bold());
+            println!(
+                "New blocks: {}",
+                result.summary.new_count.to_string().green()
+            );
+            println!(
+                "Deleted blocks: {}",
+                result.summary.deleted_count.to_string().red()
+            );
+            println!(
+                "Changed blocks: {}",
+                result.summary.changed_count.to_string().yellow()
+            );
+            println!(
+                "Total differences: {}\n",
+                result.summary.total.to_string().bold()
+            );
 
             // Print detailed differences to terminal
             if !result.differences.is_empty() {
@@ -236,20 +256,42 @@ fn main() {
                 for diff in &result.differences {
                     match diff {
                         DcmDiff::New { name, description } => {
-                            println!("{} {}: {}", "[NEW]".green().bold(), name.green(),
-                                description.as_ref().unwrap_or(&"".to_string()));
+                            println!(
+                                "{} {}: {}",
+                                "[NEW]".green().bold(),
+                                name.green(),
+                                description.as_ref().unwrap_or(&"".to_string())
+                            );
                         }
                         DcmDiff::Deleted { name, description } => {
-                            println!("{} {}: {}", "[DEL]".red().bold(), name.red(),
-                                description.as_ref().unwrap_or(&"".to_string()));
+                            println!(
+                                "{} {}: {}",
+                                "[DEL]".red().bold(),
+                                name.red(),
+                                description.as_ref().unwrap_or(&"".to_string())
+                            );
                         }
-                        DcmDiff::Changed { name, description, .. } => {
-                            println!("{} {}: {}", "[CHG]".yellow().bold(), name.yellow(),
-                                description.as_ref().unwrap_or(&"values changed".to_string()));
+                        DcmDiff::Changed {
+                            name, description, ..
+                        } => {
+                            println!(
+                                "{} {}: {}",
+                                "[CHG]".yellow().bold(),
+                                name.yellow(),
+                                description
+                                    .as_ref()
+                                    .unwrap_or(&"values changed".to_string())
+                            );
                         }
-                        DcmDiff::ChangedMap { name, description, .. } => {
-                            println!("{} {}: {}", "[CHG]".yellow().bold(), name.yellow(),
-                                description.as_ref().unwrap_or(&"map changed".to_string()));
+                        DcmDiff::ChangedMap {
+                            name, description, ..
+                        } => {
+                            println!(
+                                "{} {}: {}",
+                                "[CHG]".yellow().bold(),
+                                name.yellow(),
+                                description.as_ref().unwrap_or(&"map changed".to_string())
+                            );
                         }
                     }
                 }
@@ -259,34 +301,42 @@ fn main() {
             // Write diff result to JSON file
             let json = serde_json::to_string_pretty(&result).unwrap();
             std::fs::write(&output, json).expect("Failed to write diff output");
-            println!("Diff details written to: {}", output.display().to_string().blue());
-        },
+            println!(
+                "Diff details written to: {}",
+                output.display().to_string().blue()
+            );
+        }
         Commands::Gen { a2l, hex, output } => {
-            let dcm_data = gen::gen_dcm_data(&a2l, &hex)
-                .expect("Failed to generate DCM data");
+            let dcm_data = gen::gen_dcm_data(&a2l, &hex).expect("Failed to generate DCM data");
             dcm_data.render_to_file(&output);
-            println!("DCM file written to: {}", output.display().to_string().blue());
-        },
+            println!(
+                "DCM file written to: {}",
+                output.display().to_string().blue()
+            );
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use rstest::*;
-    use dcm_utils::DcmData;
-    use std::fs::read_dir;
-    use log::{info, LevelFilter, SetLoggerError};
-    use std::path::Path;
     use approx::assert_relative_eq;
+    use dcm_utils::DcmData;
     use env_logger::Builder;
     use ihex::Record;
+    use log::{info, LevelFilter, SetLoggerError};
+    use rstest::*;
+    use std::fs::read_dir;
     use std::io::Read;
+    use std::path::Path;
 
     #[fixture]
     #[once]
     fn tester_logger() -> Result<(), SetLoggerError> {
         let mut logger = Builder::new();
-        logger.filter_level(LevelFilter::Info).is_test(true).try_init()
+        logger
+            .filter_level(LevelFilter::Info)
+            .is_test(true)
+            .try_init()
     }
 
     #[rstest]
@@ -302,7 +352,7 @@ mod tests {
     }
 
     #[rstest]
-    fn dcm_file_smoke_test2(tester_logger: &Result<(), SetLoggerError> ) {
+    fn dcm_file_smoke_test2(tester_logger: &Result<(), SetLoggerError>) {
         let _ = tester_logger.as_ref().unwrap();
         let entries = read_dir("./test-dcms").unwrap();
         for entry in entries {
@@ -312,7 +362,11 @@ mod tests {
                 info!("Start to parse File: {}", path.display());
                 let d = DcmData::new(&path);
                 assert_ne!(d.get_all_variable_names().len(), 0);
-                info!("File: {} has {} variables", path.display(), d.get_all_variable_names().len());
+                info!(
+                    "File: {} has {} variables",
+                    path.display(),
+                    d.get_all_variable_names().len()
+                );
             }
         }
     }
@@ -326,7 +380,11 @@ mod tests {
         assert!(d.get_all_variable_names().len() > 0);
         // Test accessing a constant (VAR_0019 is CDCAct_DmprIMax_C)
         let constant = d.blocks.get("VAR_0019").unwrap();
-        assert_relative_eq!(constant.get_values().try_into_f64().unwrap()[0], 1800f64, epsilon = 1.0);
+        assert_relative_eq!(
+            constant.get_values().try_into_f64().unwrap()[0],
+            1800f64,
+            epsilon = 1.0
+        );
         // Test accessing a table (VAR_0020 is CDCAct_DmprIMaxFrnt_T)
         let table = d.blocks.get("VAR_0020").unwrap();
         assert_eq!(*table.get_values().try_into_f64().unwrap(), vec![1600.0; 8]);
@@ -342,7 +400,6 @@ mod tests {
             let line = line.unwrap();
             println!("Line: {}", line);
             let _ = Record::from_record_string(line.as_str()).unwrap();
-            
         }
     }
 
@@ -368,7 +425,12 @@ mod tests {
         });
         if let Some(Ok(record)) = item {
             if let Record::Data { offset, value } = record {
-                println!("Record at address {:#x}: {:?} \n len: {}", offset, value, value.len());
+                println!(
+                    "Record at address {:#x}: {:?} \n len: {}",
+                    offset,
+                    value,
+                    value.len()
+                );
             }
         } else {
             println!("No record found at address {}", target_addr);
@@ -379,8 +441,8 @@ mod tests {
     fn test_gen_basic() {
         let a2l_path = std::path::Path::new("./test-dcms/simple_test.a2l");
         let hex_path = std::path::Path::new("./test-dcms/simple_test.hex");
-        let dcm_data = dcm_utils::gen::gen_dcm_data(a2l_path, hex_path)
-            .expect("gen_dcm_data should succeed");
+        let dcm_data =
+            dcm_utils::gen::gen_dcm_data(a2l_path, hex_path).expect("gen_dcm_data should succeed");
 
         // Check VALUE -> FESTWERT
         assert!(dcm_data.contains_block("test_scalar"));
@@ -412,13 +474,14 @@ mod tests {
         let lower_addr = (target_addr & 0xFFFF) as u16;
         let item = reader.find(|record| {
             if let Ok(rec) = record {
-                if let Record::ExtendedLinearAddress (addr) = rec {
+                if let Record::ExtendedLinearAddress(addr) = rec {
                     if addr == &upper_addr {
                         return true; // Stop skipping
                     }
-                } 
+                }
             }
-        false});
+            false
+        });
         if let Some(Ok(_)) = item {
             let data = reader.find(|record| {
                 if let Ok(rec) = record {
@@ -432,7 +495,12 @@ mod tests {
             });
             if let Some(Ok(record)) = data {
                 if let Record::Data { offset, value } = record {
-                    println!("Record at address {:#x}: {:?} \n len: {}", offset, value, value.len());
+                    println!(
+                        "Record at address {:#x}: {:?} \n len: {}",
+                        offset,
+                        value,
+                        value.len()
+                    );
                 }
             } else {
                 println!("No data record found at address {}", target_addr);

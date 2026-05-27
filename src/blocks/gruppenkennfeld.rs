@@ -1,12 +1,11 @@
-use std::str::FromStr;
 use crate::attr::attr_arbitor::Attr;
 use crate::attr::string_attr::StringAttr;
 use crate::attr::value_attr::ValueAttr;
 use crate::value::Value;
 use crate::AxisType;
-use log::{warn, info};
+use log::{info, warn};
 use serde::Serialize;
-
+use std::str::FromStr;
 
 #[derive(Clone, Serialize)]
 pub struct GRUPPENKENNFELD {
@@ -32,12 +31,26 @@ impl FromStr for GRUPPENKENNFELD {
         let mut y_axis: Vec<f64> = Vec::new();
         let mut x_axis_name = String::new();
         let mut y_axis_name = String::new();
-        let line = lines.next().ok_or("no first line found in GRUPPENKENNFELD")?;
-        let name = line.split_whitespace().nth(1).ok_or("no name found in GRUPPENKENNFELD")?.to_string();
-        let ncol = line.split_whitespace().nth(2)
-                .ok_or("no ncol found in GRUPPENKENNFELD")?.parse::<usize>().map_err(|_| "ncol is not a number")?;
-        let nrow = line.split_whitespace().nth(3)
-                .ok_or("no nrow found in GRUPPENKENNFELD")?.parse::<usize>().map_err(|_| "nrow is not a number")?;
+        let line = lines
+            .next()
+            .ok_or("no first line found in GRUPPENKENNFELD")?;
+        let name = line
+            .split_whitespace()
+            .nth(1)
+            .ok_or("no name found in GRUPPENKENNFELD")?
+            .to_string();
+        let ncol = line
+            .split_whitespace()
+            .nth(2)
+            .ok_or("no ncol found in GRUPPENKENNFELD")?
+            .parse::<usize>()
+            .map_err(|_| "ncol is not a number")?;
+        let nrow = line
+            .split_whitespace()
+            .nth(3)
+            .ok_or("no nrow found in GRUPPENKENNFELD")?
+            .parse::<usize>()
+            .map_err(|_| "nrow is not a number")?;
         let dim = (ncol, nrow);
         for line in lines {
             match line.parse::<Attr>() {
@@ -52,17 +65,17 @@ impl FromStr for GRUPPENKENNFELD {
                     } else if let ValueAttr::TEXT(t) = v {
                         value_holder.extend_string(t)
                     }
-                },
-                Ok(Attr::EmptyLine) => {},
+                }
+                Ok(Attr::EmptyLine) => {}
                 Ok(Attr::AxisVar(a)) => {
-                    if  a.axistype == AxisType::X {
+                    if a.axistype == AxisType::X {
                         x_axis_name = a.identifier;
                     } else if a.axistype == AxisType::Y {
                         y_axis_name = a.identifier;
                     } else {
                         warn!("unknown axis attr: {}", a.identifier);
                     }
-                },
+                }
                 Err(e) => {
                     warn!("error parsing line: {}", e);
                     break;
@@ -71,14 +84,10 @@ impl FromStr for GRUPPENKENNFELD {
         }
         let value_flat = value_holder.clone();
         let value = match value_holder {
-            Value::TEXT(t) => {
-                t.chunks(ncol).map(|v| Value::TEXT(v.to_vec())).collect()
-            },
-            Value::WERT(w) => {
-                w.chunks(ncol).map(|v| Value::WERT(v.to_vec())).collect()
-            }
+            Value::TEXT(t) => t.chunks(ncol).map(|v| Value::TEXT(v.to_vec())).collect(),
+            Value::WERT(w) => w.chunks(ncol).map(|v| Value::WERT(v.to_vec())).collect(),
         };
-        Ok( Self {
+        Ok(Self {
             name,
             dim,
             value,
@@ -87,21 +96,32 @@ impl FromStr for GRUPPENKENNFELD {
             x_axis_name,
             y_axis_name,
             attrs,
-            value_flat
+            value_flat,
         })
     }
 }
 
 impl GRUPPENKENNFELD {
-    pub fn from_f64(name: &str, value: Vec<Vec<f64>>, x_axis: Vec<f64>, 
-        y_axis: Vec<f64>, x_axis_name: &str, y_axis_name: &str, 
-        desc: &str, unit_w: &str, unit_x: &str, unit_y: &str) -> Self {
+    pub fn from_f64(
+        name: &str,
+        value: Vec<Vec<f64>>,
+        x_axis: Vec<f64>,
+        y_axis: Vec<f64>,
+        x_axis_name: &str,
+        y_axis_name: &str,
+        desc: &str,
+        unit_w: &str,
+        unit_x: &str,
+        unit_y: &str,
+    ) -> Self {
         let dim = (x_axis.len(), y_axis.len());
         let value_flat = Value::WERT(value.iter().flat_map(|v| v.clone()).collect());
-        let attrs = vec![StringAttr::new("LANGNAME", desc),
-                         StringAttr::new("EINHEIT_W", unit_w),
-                         StringAttr::new("EINHEIT_X", unit_x),
-                         StringAttr::new("EINHEIT_Y", unit_y)];
+        let attrs = vec![
+            StringAttr::new("LANGNAME", desc),
+            StringAttr::new("EINHEIT_W", unit_w),
+            StringAttr::new("EINHEIT_X", unit_x),
+            StringAttr::new("EINHEIT_Y", unit_y),
+        ];
         let value = value.into_iter().map(Value::WERT).collect();
         Self {
             value,
@@ -112,19 +132,30 @@ impl GRUPPENKENNFELD {
             x_axis_name: x_axis_name.to_string(),
             y_axis_name: y_axis_name.to_string(),
             attrs,
-            value_flat
+            value_flat,
         }
     }
 
-    pub fn from_string(name: String, value: Vec<Vec<String>>, x_axis: Vec<f64>, 
-        y_axis: Vec<f64>, x_axis_name: String, y_axis_name: String, 
-        desc: String, unit_w: String, unit_x: String, unit_y: String) -> Self {
+    pub fn from_string(
+        name: String,
+        value: Vec<Vec<String>>,
+        x_axis: Vec<f64>,
+        y_axis: Vec<f64>,
+        x_axis_name: String,
+        y_axis_name: String,
+        desc: String,
+        unit_w: String,
+        unit_x: String,
+        unit_y: String,
+    ) -> Self {
         let dim = (x_axis.len(), y_axis.len());
         let value_flat = Value::TEXT(value.iter().flat_map(|v| v.clone()).collect());
-        let attrs = vec![StringAttr::new("LANGNAME", desc.as_str()),
-                         StringAttr::new("EINHEIT_W", unit_w.as_str()),
-                         StringAttr::new("EINHEIT_X", unit_x.as_str()),
-                         StringAttr::new("EINHEIT_Y", unit_y.as_str())];
+        let attrs = vec![
+            StringAttr::new("LANGNAME", desc.as_str()),
+            StringAttr::new("EINHEIT_W", unit_w.as_str()),
+            StringAttr::new("EINHEIT_X", unit_x.as_str()),
+            StringAttr::new("EINHEIT_Y", unit_y.as_str()),
+        ];
         let value = value.into_iter().map(Value::TEXT).collect();
         Self {
             value,
@@ -135,7 +166,7 @@ impl GRUPPENKENNFELD {
             x_axis_name,
             y_axis_name,
             attrs,
-            value_flat
+            value_flat,
         }
     }
 
@@ -148,21 +179,29 @@ impl GRUPPENKENNFELD {
             warn!("value_flat: {} != {}", self.value_flat, other.value_flat);
         }
         if self.x_axis != other.x_axis {
-            warn!("x_axis: {} != {}", from_vec_f64(self.x_axis.as_slice()), from_vec_f64(other.x_axis.as_slice()));
+            warn!(
+                "x_axis: {} != {}",
+                from_vec_f64(self.x_axis.as_slice()),
+                from_vec_f64(other.x_axis.as_slice())
+            );
         }
         if self.y_axis != other.y_axis {
-            warn!("y_axis: {} != {}", from_vec_f64(self.y_axis.as_slice()), from_vec_f64(other.y_axis.as_slice()));
+            warn!(
+                "y_axis: {} != {}",
+                from_vec_f64(self.y_axis.as_slice()),
+                from_vec_f64(other.y_axis.as_slice())
+            );
         }
     }
 }
 
 impl PartialEq for GRUPPENKENNFELD {
     fn eq(&self, other: &Self) -> bool {
-        self.value_flat == other.value_flat && 
-        self.x_axis == other.x_axis && 
-        self.y_axis == other.y_axis &&
-        self.x_axis_name == other.x_axis_name &&
-        self.y_axis_name == other.y_axis_name
+        self.value_flat == other.value_flat
+            && self.x_axis == other.x_axis
+            && self.y_axis == other.y_axis
+            && self.x_axis_name == other.x_axis_name
+            && self.y_axis_name == other.y_axis_name
     }
 }
 

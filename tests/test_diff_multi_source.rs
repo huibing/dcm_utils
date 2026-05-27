@@ -1,9 +1,9 @@
-use std::path::{Path, PathBuf};
 use dcm_utils::{
-    DcmData,
-    diff::{CalSource, dcm_diff_with_metadata},
+    diff::{dcm_diff_with_metadata, CalSource},
     gen::gen_dcm_data,
+    DcmData,
 };
+use std::path::{Path, PathBuf};
 
 /// DCM vs DCM: compare two known-different test DCM files
 #[test]
@@ -16,7 +16,10 @@ fn test_diff_dcm_vs_dcm() {
 
     let result = dcm_diff_with_metadata(&left_data, &right_data, &left, &right);
 
-    assert!(result.summary.total > 0, "Should detect differences between different DCM files");
+    assert!(
+        result.summary.total > 0,
+        "Should detect differences between different DCM files"
+    );
     assert_eq!(result.metadata.left_label, left.label());
     assert_eq!(result.metadata.right_label, right.label());
 }
@@ -30,12 +33,21 @@ fn test_diff_a2l_vs_a2l_same() {
     let left_data = gen_dcm_data(a2l, hex).expect("should generate DCM data");
     let right_data = gen_dcm_data(a2l, hex).expect("should generate DCM data");
 
-    let left_src = CalSource::A2lHex { a2l: a2l.to_path_buf(), hex: hex.to_path_buf() };
-    let right_src = CalSource::A2lHex { a2l: a2l.to_path_buf(), hex: hex.to_path_buf() };
+    let left_src = CalSource::A2lHex {
+        a2l: a2l.to_path_buf(),
+        hex: hex.to_path_buf(),
+    };
+    let right_src = CalSource::A2lHex {
+        a2l: a2l.to_path_buf(),
+        hex: hex.to_path_buf(),
+    };
 
     let result = dcm_diff_with_metadata(&left_data, &right_data, &left_src, &right_src);
 
-    assert_eq!(result.summary.total, 0, "Identical A2L+HEX should produce zero differences");
+    assert_eq!(
+        result.summary.total, 0,
+        "Identical A2L+HEX should produce zero differences"
+    );
 }
 
 /// A2L+HEX vs A2L+HEX different: compare generated data against a modified copy
@@ -52,12 +64,21 @@ fn test_diff_a2l_vs_a2l_different() {
         right_data.blocks.shift_remove(&first_name);
     }
 
-    let left_src = CalSource::A2lHex { a2l: a2l.to_path_buf(), hex: hex.to_path_buf() };
-    let right_src = CalSource::A2lHex { a2l: a2l.to_path_buf(), hex: hex.to_path_buf() };
+    let left_src = CalSource::A2lHex {
+        a2l: a2l.to_path_buf(),
+        hex: hex.to_path_buf(),
+    };
+    let right_src = CalSource::A2lHex {
+        a2l: a2l.to_path_buf(),
+        hex: hex.to_path_buf(),
+    };
 
     let result = dcm_diff_with_metadata(&left_data, &right_data, &left_src, &right_src);
 
-    assert!(result.summary.total > 0, "Different A2L+HEX sources should produce differences");
+    assert!(
+        result.summary.total > 0,
+        "Different A2L+HEX sources should produce differences"
+    );
 }
 
 /// A2L+HEX vs DCM round-trip: generate DCM from A2L+HEX, compare against itself
@@ -74,7 +95,10 @@ fn test_diff_a2l_vs_dcm_roundtrip() {
 
     let right_data = DcmData::new(Path::new(&temp_path));
 
-    let left_src = CalSource::A2lHex { a2l: a2l.to_path_buf(), hex: hex.to_path_buf() };
+    let left_src = CalSource::A2lHex {
+        a2l: a2l.to_path_buf(),
+        hex: hex.to_path_buf(),
+    };
     let right_src = CalSource::Dcm(PathBuf::from(&temp_path));
 
     let result = dcm_diff_with_metadata(&left_data, &right_data, &left_src, &right_src);
@@ -82,7 +106,10 @@ fn test_diff_a2l_vs_dcm_roundtrip() {
     // Clean up temp file
     let _ = std::fs::remove_file(&temp_path);
 
-    assert_eq!(result.summary.total, 0, "Round-trip A2L+HEX→DCM→file→DCM should produce zero differences");
+    assert_eq!(
+        result.summary.total, 0,
+        "Round-trip A2L+HEX→DCM→file→DCM should produce zero differences"
+    );
 }
 
 /// A2L+HEX vs DCM different: compare generated data against an unrelated DCM file
@@ -94,10 +121,16 @@ fn test_diff_a2l_vs_dcm_different() {
     let left_data = gen_dcm_data(a2l, hex).expect("should generate DCM data");
     let right_data = DcmData::new(Path::new("test-dcms/test1.DCM"));
 
-    let left_src = CalSource::A2lHex { a2l: a2l.to_path_buf(), hex: hex.to_path_buf() };
+    let left_src = CalSource::A2lHex {
+        a2l: a2l.to_path_buf(),
+        hex: hex.to_path_buf(),
+    };
     let right_src = CalSource::Dcm(PathBuf::from("test-dcms/test1.DCM"));
 
     let result = dcm_diff_with_metadata(&left_data, &right_data, &left_src, &right_src);
 
-    assert!(result.summary.total > 0, "A2L+HEX vs unrelated DCM should produce differences");
+    assert!(
+        result.summary.total > 0,
+        "A2L+HEX vs unrelated DCM should produce differences"
+    );
 }

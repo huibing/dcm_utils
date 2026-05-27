@@ -9,9 +9,11 @@ use a2lfile::A2lObjectName;
 
 use log::warn;
 
-use crate::DcmData;
 use crate::block::Block;
-use crate::blocks::{FESTWERT, FESTWERTEBLOCK, GRUPPENKENNLINIE, GRUPPENKENNFELD, STUETZSTELLENVERTEILUNG};
+use crate::blocks::{
+    FESTWERT, FESTWERTEBLOCK, GRUPPENKENNFELD, GRUPPENKENNLINIE, STUETZSTELLENVERTEILUNG,
+};
+use crate::DcmData;
 use indexmap::IndexMap;
 
 /// Parse A2L+HEX, extract all calibration characteristics, and return DcmData
@@ -53,12 +55,16 @@ fn extracted_to_dcm_blocks(
         langname_map.insert(chr.get_name().to_string(), chr.long_identifier.clone());
     }
     for apt in &module.axis_pts {
-        langname_map.entry(apt.get_name().to_string())
+        langname_map
+            .entry(apt.get_name().to_string())
             .or_insert_with(|| apt.long_identifier.clone());
     }
 
     let get_langname = |name: &str| -> String {
-        langname_map.get(name).cloned().unwrap_or_else(|| name.to_string())
+        langname_map
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| name.to_string())
     };
 
     // Partition objects by type
@@ -91,7 +97,10 @@ fn extracted_to_dcm_blocks(
     for a in asciis {
         let langname = get_langname(&a.name);
         let block = Block::Constant(FESTWERT::from_string(
-            a.name.clone(), a.text, langname, String::new(),
+            a.name.clone(),
+            a.text,
+            langname,
+            String::new(),
         ));
         blocks.insert(a.name.clone(), block);
     }
@@ -107,7 +116,10 @@ fn extracted_to_dcm_blocks(
     for apt in &axis_pts_list {
         let langname = get_langname(&apt.name);
         let block = Block::Distribution(STUETZSTELLENVERTEILUNG::from_f64(
-            &apt.name, &langname, &apt.values, &apt.unit,
+            &apt.name,
+            &langname,
+            &apt.values,
+            &apt.unit,
         ));
         blocks.insert(apt.name.clone(), block);
     }
@@ -120,7 +132,10 @@ fn extracted_to_dcm_blocks(
             ));
             blocks.insert(axis_name, block);
         } else {
-            warn!("Derived axis '{}' collides with existing AXIS_PTS, skipped", axis_name);
+            warn!(
+                "Derived axis '{}' collides with existing AXIS_PTS, skipped",
+                axis_name
+            );
         }
     }
     for m in &maps {
@@ -133,11 +148,17 @@ fn extracted_to_dcm_blocks(
             if !blocks.contains_key(axis_name.as_str()) {
                 let langname = get_langname(&m.name);
                 let block = Block::Distribution(STUETZSTELLENVERTEILUNG::from_f64(
-                    axis_name, &langname, axis_values, axis_unit,
+                    axis_name,
+                    &langname,
+                    axis_values,
+                    axis_unit,
                 ));
                 blocks.insert(axis_name.clone(), block);
             } else {
-                warn!("Derived axis '{}' collides with existing AXIS_PTS, skipped", axis_name);
+                warn!(
+                    "Derived axis '{}' collides with existing AXIS_PTS, skipped",
+                    axis_name
+                );
             }
         }
     }
@@ -164,63 +185,96 @@ fn extracted_to_dcm_blocks(
 fn extracted_value_to_block(v: &a2ldeser::extractor::ExtractedValue, langname: &str) -> Block {
     let unit = v.unit.clone();
     match &v.physical {
-        PhysicalValue::Numeric(n) => {
-            Block::Constant(FESTWERT::from_f64(v.name.clone(), *n, langname.to_string(), unit))
-        }
-        PhysicalValue::Verbal(s) => {
-            Block::Constant(FESTWERT::from_string(v.name.clone(), s.clone(), langname.to_string(), unit))
-        }
+        PhysicalValue::Numeric(n) => Block::Constant(FESTWERT::from_f64(
+            v.name.clone(),
+            *n,
+            langname.to_string(),
+            unit,
+        )),
+        PhysicalValue::Verbal(s) => Block::Constant(FESTWERT::from_string(
+            v.name.clone(),
+            s.clone(),
+            langname.to_string(),
+            unit,
+        )),
     }
 }
 
 fn extracted_valblk_to_block(vb: &a2ldeser::extractor::ExtractedValBlk, langname: &str) -> Block {
     let unit = vb.unit.clone();
-    let has_verbal = vb.values.iter().any(|pv| matches!(pv, PhysicalValue::Verbal(_)));
+    let has_verbal = vb
+        .values
+        .iter()
+        .any(|pv| matches!(pv, PhysicalValue::Verbal(_)));
 
     if has_verbal {
-        warn!("ValBlk '{}' contains mixed numeric/verbal values, converting entire block to TEXT", vb.name);
-        let strings: Vec<String> = vb.values.iter().map(|pv| match pv {
-            PhysicalValue::Numeric(n) => format!("{}", n),
-            PhysicalValue::Verbal(s) => s.clone(),
-        }).collect();
+        warn!(
+            "ValBlk '{}' contains mixed numeric/verbal values, converting entire block to TEXT",
+            vb.name
+        );
+        let strings: Vec<String> = vb
+            .values
+            .iter()
+            .map(|pv| match pv {
+                PhysicalValue::Numeric(n) => format!("{}", n),
+                PhysicalValue::Verbal(s) => s.clone(),
+            })
+            .collect();
         Block::ConstantBlock(FESTWERTEBLOCK::from_string(
-            vb.name.clone(), strings, langname.to_string(), unit,
+            vb.name.clone(),
+            strings,
+            langname.to_string(),
+            unit,
         ))
     } else {
-        let nums: Vec<f64> = vb.values.iter().map(|pv| match pv {
-            PhysicalValue::Numeric(n) => *n,
-            _ => unreachable!(),
-        }).collect();
+        let nums: Vec<f64> = vb
+            .values
+            .iter()
+            .map(|pv| match pv {
+                PhysicalValue::Numeric(n) => *n,
+                _ => unreachable!(),
+            })
+            .collect();
         Block::ConstantBlock(FESTWERTEBLOCK::from_f64(
-            vb.name.clone(), nums, langname.to_string(), unit,
+            vb.name.clone(),
+            nums,
+            langname.to_string(),
+            unit,
         ))
     }
 }
 
-fn extracted_curve_to_block(c: &a2ldeser::extractor::ExtractedCurve, langname: &str) -> Option<Block> {
+fn extracted_curve_to_block(
+    c: &a2ldeser::extractor::ExtractedCurve,
+    langname: &str,
+) -> Option<Block> {
     let axis_name = format!("{}_X", c.name);
     let unit = c.unit.clone();
     let unit_x = c.x_unit.clone();
 
-    let has_verbal = c.values.iter().any(|pv| matches!(pv, PhysicalValue::Verbal(_)));
+    let has_verbal = c
+        .values
+        .iter()
+        .any(|pv| matches!(pv, PhysicalValue::Verbal(_)));
     if has_verbal {
-        warn!("Skipping CURVE '{}' — contains verbal values, not representable in DCM", c.name);
+        warn!(
+            "Skipping CURVE '{}' — contains verbal values, not representable in DCM",
+            c.name
+        );
         return None;
     }
 
-    let nums: Vec<f64> = c.values.iter().map(|pv| match pv {
-        PhysicalValue::Numeric(n) => *n,
-        _ => unreachable!(),
-    }).collect();
+    let nums: Vec<f64> = c
+        .values
+        .iter()
+        .map(|pv| match pv {
+            PhysicalValue::Numeric(n) => *n,
+            _ => unreachable!(),
+        })
+        .collect();
 
     Some(Block::Table(GRUPPENKENNLINIE::from_f64(
-        &c.name,
-        &nums,
-        langname,
-        &unit,
-        &unit_x,
-        &axis_name,
-        &c.x_axis,
+        &c.name, &nums, langname, &unit, &unit_x, &axis_name, &c.x_axis,
     )))
 }
 
@@ -231,20 +285,30 @@ fn extracted_map_to_block(m: &a2ldeser::extractor::ExtractedMap, langname: &str)
     let unit_x = m.x_unit.clone();
     let unit_y = m.y_unit.clone();
 
-    let has_verbal = m.values.iter().any(|row| {
-        row.iter().any(|pv| matches!(pv, PhysicalValue::Verbal(_)))
-    });
+    let has_verbal = m
+        .values
+        .iter()
+        .any(|row| row.iter().any(|pv| matches!(pv, PhysicalValue::Verbal(_))));
     if has_verbal {
-        warn!("Skipping MAP '{}' — contains verbal values, not representable in DCM", m.name);
+        warn!(
+            "Skipping MAP '{}' — contains verbal values, not representable in DCM",
+            m.name
+        );
         return None;
     }
 
-    let values_2d: Vec<Vec<f64>> = m.values.iter().map(|row| {
-        row.iter().map(|pv| match pv {
-            PhysicalValue::Numeric(n) => *n,
-            _ => unreachable!(),
-        }).collect()
-    }).collect();
+    let values_2d: Vec<Vec<f64>> = m
+        .values
+        .iter()
+        .map(|row| {
+            row.iter()
+                .map(|pv| match pv {
+                    PhysicalValue::Numeric(n) => *n,
+                    _ => unreachable!(),
+                })
+                .collect()
+        })
+        .collect();
 
     Some(Block::Map(GRUPPENKENNFELD::from_f64(
         &m.name,
@@ -263,9 +327,9 @@ fn extracted_map_to_block(m: &a2ldeser::extractor::ExtractedMap, langname: &str)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a2ldeser::extractor::{ExtractedValue, ExtractedValBlk, ExtractedCurve};
-    use a2ldeser::extractor::PhysicalValue;
     use crate::value::Value;
+    use a2ldeser::extractor::PhysicalValue;
+    use a2ldeser::extractor::{ExtractedCurve, ExtractedValBlk, ExtractedValue};
 
     #[test]
     fn test_extracted_value_numeric_to_festwert() {
@@ -280,8 +344,22 @@ mod tests {
             Block::Constant(c) => {
                 assert_eq!(c.name, "test");
                 assert_eq!(c.value, Value::WERT(vec![42.0]));
-                assert_eq!(c.attrs.iter().find(|a| a.identifier == "LANGNAME").unwrap().value, "Test desc");
-                assert_eq!(c.attrs.iter().find(|a| a.identifier == "EINHEIT_W").unwrap().value, "mm");
+                assert_eq!(
+                    c.attrs
+                        .iter()
+                        .find(|a| a.identifier == "LANGNAME")
+                        .unwrap()
+                        .value,
+                    "Test desc"
+                );
+                assert_eq!(
+                    c.attrs
+                        .iter()
+                        .find(|a| a.identifier == "EINHEIT_W")
+                        .unwrap()
+                        .value,
+                    "mm"
+                );
             }
             _ => panic!("Expected Constant"),
         }
@@ -293,11 +371,17 @@ mod tests {
             name: "bad_curve".to_string(),
             x_axis: vec![1.0, 2.0],
             x_unit: "rpm".to_string(),
-            values: vec![PhysicalValue::Numeric(1.0), PhysicalValue::Verbal("BAD".into())],
+            values: vec![
+                PhysicalValue::Numeric(1.0),
+                PhysicalValue::Verbal("BAD".into()),
+            ],
             unit: "Nm".to_string(),
         };
         let result = extracted_curve_to_block(&c, "desc");
-        assert!(result.is_none(), "Curve with verbal values should be skipped");
+        assert!(
+            result.is_none(),
+            "Curve with verbal values should be skipped"
+        );
     }
 
     #[test]
@@ -315,7 +399,10 @@ mod tests {
         match block {
             Block::ConstantBlock(c) => {
                 assert_eq!(c.name, "mixed");
-                assert_eq!(c.value, Value::TEXT(vec!["1".into(), "TWO".into(), "3".into()]));
+                assert_eq!(
+                    c.value,
+                    Value::TEXT(vec!["1".into(), "TWO".into(), "3".into()])
+                );
             }
             _ => panic!("Expected ConstantBlock"),
         }

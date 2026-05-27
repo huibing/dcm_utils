@@ -1,5 +1,8 @@
+use dcm_utils::{
+    diff::{dcm_diff_with_metadata, CalSource, DcmDiff, DcmDiffResult},
+    DcmData,
+};
 use std::path::Path;
-use dcm_utils::{DcmData, diff::{dcm_diff_with_metadata, DcmDiffResult, DcmDiff, CalSource}};
 
 /// Comprehensive test for 2D map (GRUPPENKENNFELD) changes
 ///
@@ -20,51 +23,55 @@ fn test_2d_map_diff_detects_all_changes() {
     let original = DcmData::new(original_path);
     let modified = DcmData::new(modified_path);
 
-    let result = dcm_diff_with_metadata(&original, &modified, &CalSource::Dcm(original_path.to_path_buf()), &CalSource::Dcm(modified_path.to_path_buf()));
+    let result = dcm_diff_with_metadata(
+        &original,
+        &modified,
+        &CalSource::Dcm(original_path.to_path_buf()),
+        &CalSource::Dcm(modified_path.to_path_buf()),
+    );
 
     // Verify summary
     assert!(result.summary.total > 0, "Should have differences");
 
     // MAP_TEST_001 should be changed
-    let map_diff = result.differences.iter().find(|d| {
-        match d {
-            DcmDiff::ChangedMap { name, .. } => name == "MAP_TEST_001",
-            _ => false,
-        }
+    let map_diff = result.differences.iter().find(|d| match d {
+        DcmDiff::ChangedMap { name, .. } => name == "MAP_TEST_001",
+        _ => false,
     });
-    assert!(map_diff.is_some(), "MAP_TEST_001 should be detected as ChangedMap");
+    assert!(
+        map_diff.is_some(),
+        "MAP_TEST_001 should be detected as ChangedMap"
+    );
 
     // Verify old axis blocks are deleted
-    let axis_x_001_deleted = result.differences.iter().any(|d| {
-        match d {
-            DcmDiff::Deleted { name, .. } => name == "AXIS_X_001",
-            _ => false,
-        }
+    let axis_x_001_deleted = result.differences.iter().any(|d| match d {
+        DcmDiff::Deleted { name, .. } => name == "AXIS_X_001",
+        _ => false,
     });
-    assert!(axis_x_001_deleted, "AXIS_X_001 should be detected as deleted");
+    assert!(
+        axis_x_001_deleted,
+        "AXIS_X_001 should be detected as deleted"
+    );
 
-    let axis_y_001_deleted = result.differences.iter().any(|d| {
-        match d {
-            DcmDiff::Deleted { name, .. } => name == "AXIS_Y_001",
-            _ => false,
-        }
+    let axis_y_001_deleted = result.differences.iter().any(|d| match d {
+        DcmDiff::Deleted { name, .. } => name == "AXIS_Y_001",
+        _ => false,
     });
-    assert!(axis_y_001_deleted, "AXIS_Y_001 should be detected as deleted");
+    assert!(
+        axis_y_001_deleted,
+        "AXIS_Y_001 should be detected as deleted"
+    );
 
     // Verify new axis blocks are added
-    let axis_x_002_new = result.differences.iter().any(|d| {
-        match d {
-            DcmDiff::New { name, .. } => name == "AXIS_X_002",
-            _ => false,
-        }
+    let axis_x_002_new = result.differences.iter().any(|d| match d {
+        DcmDiff::New { name, .. } => name == "AXIS_X_002",
+        _ => false,
     });
     assert!(axis_x_002_new, "AXIS_X_002 should be detected as new");
 
-    let axis_y_002_new = result.differences.iter().any(|d| {
-        match d {
-            DcmDiff::New { name, .. } => name == "AXIS_Y_002",
-            _ => false,
-        }
+    let axis_y_002_new = result.differences.iter().any(|d| match d {
+        DcmDiff::New { name, .. } => name == "AXIS_Y_002",
+        _ => false,
     });
     assert!(axis_y_002_new, "AXIS_Y_002 should be detected as new");
 }
@@ -78,20 +85,27 @@ fn test_2d_map_changedmap_contains_detailed_info() {
     let original = DcmData::new(original_path);
     let modified = DcmData::new(modified_path);
 
-    let result = dcm_diff_with_metadata(&original, &modified, &CalSource::Dcm(original_path.to_path_buf()), &CalSource::Dcm(modified_path.to_path_buf()));
+    let result = dcm_diff_with_metadata(
+        &original,
+        &modified,
+        &CalSource::Dcm(original_path.to_path_buf()),
+        &CalSource::Dcm(modified_path.to_path_buf()),
+    );
 
     // Find MAP_TEST_001 change
-    let map_diff = result.differences.iter().find_map(|d| {
-        match d {
-            DcmDiff::ChangedMap { name, detail, description } => {
-                if name == "MAP_TEST_001" {
-                    Some((detail, description))
-                } else {
-                    None
-                }
+    let map_diff = result.differences.iter().find_map(|d| match d {
+        DcmDiff::ChangedMap {
+            name,
+            detail,
+            description,
+        } => {
+            if name == "MAP_TEST_001" {
+                Some((detail, description))
+            } else {
+                None
             }
-            _ => None,
         }
+        _ => None,
     });
 
     assert!(map_diff.is_some(), "Should find MAP_TEST_001 ChangedMap");
@@ -123,8 +137,10 @@ fn test_2d_map_changedmap_contains_detailed_info() {
     assert_eq!(detail.new_values.y_axis_name, "AXIS_Y_002");
 
     // Verify description mentions key changes
-    assert!(desc.contains("dimensions") || desc.contains("values") || desc.contains("axis"),
-            "Description should mention what changed");
+    assert!(
+        desc.contains("dimensions") || desc.contains("values") || desc.contains("axis"),
+        "Description should mention what changed"
+    );
 }
 
 /// Test JSON output structure for 2D map comprehensive diff
@@ -136,29 +152,70 @@ fn test_2d_map_diff_json_structure() {
     let original = DcmData::new(original_path);
     let modified = DcmData::new(modified_path);
 
-    let result = dcm_diff_with_metadata(&original, &modified, &CalSource::Dcm(original_path.to_path_buf()), &CalSource::Dcm(modified_path.to_path_buf()));
+    let result = dcm_diff_with_metadata(
+        &original,
+        &modified,
+        &CalSource::Dcm(original_path.to_path_buf()),
+        &CalSource::Dcm(modified_path.to_path_buf()),
+    );
     let json_output = serde_json::to_string_pretty(&result).expect("Failed to serialize");
 
     // Verify metadata
-    assert!(json_output.contains("metadata"), "JSON should have metadata");
-    assert!(json_output.contains("test_map_base.DCM"), "JSON should contain original file");
-    assert!(json_output.contains("test_map_modified.DCM"), "JSON should contain modified file");
+    assert!(
+        json_output.contains("metadata"),
+        "JSON should have metadata"
+    );
+    assert!(
+        json_output.contains("test_map_base.DCM"),
+        "JSON should contain original file"
+    );
+    assert!(
+        json_output.contains("test_map_modified.DCM"),
+        "JSON should contain modified file"
+    );
 
     // Verify summary
     assert!(json_output.contains("summary"), "JSON should have summary");
-    assert!(json_output.contains("new_count"), "JSON should have new_count");
-    assert!(json_output.contains("deleted_count"), "JSON should have deleted_count");
-    assert!(json_output.contains("changed_count"), "JSON should have changed_count");
+    assert!(
+        json_output.contains("new_count"),
+        "JSON should have new_count"
+    );
+    assert!(
+        json_output.contains("deleted_count"),
+        "JSON should have deleted_count"
+    );
+    assert!(
+        json_output.contains("changed_count"),
+        "JSON should have changed_count"
+    );
 
     // Verify all expected blocks are present
-    assert!(json_output.contains("MAP_TEST_001"), "JSON should contain MAP_TEST_001");
-    assert!(json_output.contains("AXIS_X_001"), "JSON should contain AXIS_X_001");
-    assert!(json_output.contains("AXIS_X_002"), "JSON should contain AXIS_X_002");
-    assert!(json_output.contains("AXIS_Y_001"), "JSON should contain AXIS_Y_001");
-    assert!(json_output.contains("AXIS_Y_002"), "JSON should contain AXIS_Y_002");
+    assert!(
+        json_output.contains("MAP_TEST_001"),
+        "JSON should contain MAP_TEST_001"
+    );
+    assert!(
+        json_output.contains("AXIS_X_001"),
+        "JSON should contain AXIS_X_001"
+    );
+    assert!(
+        json_output.contains("AXIS_X_002"),
+        "JSON should contain AXIS_X_002"
+    );
+    assert!(
+        json_output.contains("AXIS_Y_001"),
+        "JSON should contain AXIS_Y_001"
+    );
+    assert!(
+        json_output.contains("AXIS_Y_002"),
+        "JSON should contain AXIS_Y_002"
+    );
 
     // Verify ChangedMap structure
-    assert!(json_output.contains("ChangedMap"), "JSON should have ChangedMap variant");
+    assert!(
+        json_output.contains("ChangedMap"),
+        "JSON should have ChangedMap variant"
+    );
 }
 
 /// Test that the diff can be serialized and deserialized (roundtrip)
@@ -170,7 +227,12 @@ fn test_2d_map_diff_roundtrip() {
     let original = DcmData::new(original_path);
     let modified = DcmData::new(modified_path);
 
-    let result = dcm_diff_with_metadata(&original, &modified, &CalSource::Dcm(original_path.to_path_buf()), &CalSource::Dcm(modified_path.to_path_buf()));
+    let result = dcm_diff_with_metadata(
+        &original,
+        &modified,
+        &CalSource::Dcm(original_path.to_path_buf()),
+        &CalSource::Dcm(modified_path.to_path_buf()),
+    );
 
     // Serialize
     let json = serde_json::to_string_pretty(&result).expect("Failed to serialize");
@@ -180,13 +242,22 @@ fn test_2d_map_diff_roundtrip() {
 
     // Verify metadata preserved
     assert_eq!(deserialized.metadata.left_label, result.metadata.left_label);
-    assert_eq!(deserialized.metadata.right_label, result.metadata.right_label);
+    assert_eq!(
+        deserialized.metadata.right_label,
+        result.metadata.right_label
+    );
 
     // Verify summary preserved
     assert_eq!(deserialized.summary.total, result.summary.total);
     assert_eq!(deserialized.summary.new_count, result.summary.new_count);
-    assert_eq!(deserialized.summary.deleted_count, result.summary.deleted_count);
-    assert_eq!(deserialized.summary.changed_count, result.summary.changed_count);
+    assert_eq!(
+        deserialized.summary.deleted_count,
+        result.summary.deleted_count
+    );
+    assert_eq!(
+        deserialized.summary.changed_count,
+        result.summary.changed_count
+    );
 
     // Verify differences count
     assert_eq!(deserialized.differences.len(), result.differences.len());
@@ -201,10 +272,17 @@ fn test_2d_map_terminal_output_descriptions() {
     let original = DcmData::new(original_path);
     let modified = DcmData::new(modified_path);
 
-    let result = dcm_diff_with_metadata(&original, &modified, &CalSource::Dcm(original_path.to_path_buf()), &CalSource::Dcm(modified_path.to_path_buf()));
+    let result = dcm_diff_with_metadata(
+        &original,
+        &modified,
+        &CalSource::Dcm(original_path.to_path_buf()),
+        &CalSource::Dcm(modified_path.to_path_buf()),
+    );
 
     // Collect all descriptions
-    let descriptions: Vec<String> = result.differences.iter()
+    let descriptions: Vec<String> = result
+        .differences
+        .iter()
         .filter_map(|d| match d {
             DcmDiff::New { description, .. } => description.clone(),
             DcmDiff::Deleted { description, .. } => description.clone(),
@@ -214,8 +292,11 @@ fn test_2d_map_terminal_output_descriptions() {
         .collect();
 
     // Each diff should have a description
-    assert_eq!(descriptions.len(), result.differences.len(),
-               "Each diff should have a description");
+    assert_eq!(
+        descriptions.len(),
+        result.differences.len(),
+        "Each diff should have a description"
+    );
 
     // Print all descriptions for verification
     for desc in &descriptions {
@@ -224,12 +305,16 @@ fn test_2d_map_terminal_output_descriptions() {
     }
 
     // Verify MAP_TEST_001 description mentions specific changes
-    let map_desc = descriptions.iter()
+    let map_desc = descriptions
+        .iter()
         .find(|d| d.contains("MAP_TEST_001"))
         .expect("Should have description for MAP_TEST_001");
 
     // Should mention key changes
-    assert!(map_desc.contains("GRUPPENKENNFELD"), "Should mention block type");
+    assert!(
+        map_desc.contains("GRUPPENKENNFELD"),
+        "Should mention block type"
+    );
 }
 
 /// Test comparing identical 2D map files
@@ -240,10 +325,18 @@ fn test_2d_map_diff_identical_files() {
     let original = DcmData::new(original_path);
     let modified = DcmData::new(original_path);
 
-    let result = dcm_diff_with_metadata(&original, &modified, &CalSource::Dcm(original_path.to_path_buf()), &CalSource::Dcm(original_path.to_path_buf()));
+    let result = dcm_diff_with_metadata(
+        &original,
+        &modified,
+        &CalSource::Dcm(original_path.to_path_buf()),
+        &CalSource::Dcm(original_path.to_path_buf()),
+    );
 
     // Should have no differences
-    assert!(result.differences.is_empty(), "Identical files should have no differences");
+    assert!(
+        result.differences.is_empty(),
+        "Identical files should have no differences"
+    );
     assert_eq!(result.summary.total, 0);
     assert_eq!(result.summary.new_count, 0);
     assert_eq!(result.summary.deleted_count, 0);
@@ -260,21 +353,25 @@ fn test_2d_map_value_changes_only() {
     let original = DcmData::new(original_path);
     let modified = DcmData::new(modified_path);
 
-    let result = dcm_diff_with_metadata(&original, &modified, &CalSource::Dcm(original_path.to_path_buf()), &CalSource::Dcm(modified_path.to_path_buf()));
+    let result = dcm_diff_with_metadata(
+        &original,
+        &modified,
+        &CalSource::Dcm(original_path.to_path_buf()),
+        &CalSource::Dcm(modified_path.to_path_buf()),
+    );
 
     // Find MAP_TEST_001
-    let map_diff = result.differences.iter().find_map(|d| {
-        match d {
-            DcmDiff::ChangedMap { name, detail, .. } if name == "MAP_TEST_001" => {
-                Some(detail)
-            }
-            _ => None,
-        }
+    let map_diff = result.differences.iter().find_map(|d| match d {
+        DcmDiff::ChangedMap { name, detail, .. } if name == "MAP_TEST_001" => Some(detail),
+        _ => None,
     });
 
     assert!(map_diff.is_some(), "Should find MAP_TEST_001 diff");
     let detail = map_diff.unwrap();
 
     // Values should be different
-    assert_ne!(detail.old_values.values, detail.new_values.values, "Values should be different");
+    assert_ne!(
+        detail.old_values.values, detail.new_values.values,
+        "Values should be different"
+    );
 }

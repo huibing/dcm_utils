@@ -1,29 +1,39 @@
 pub mod attr;
 pub mod block;
 pub mod blocks;
-pub mod value;
 pub mod diff;
 pub mod gen;
+pub mod value;
 
-pub use diff::{DcmDiff, DcmDiffResult, DiffMetadata, DiffSummary, MapChangeDetail, MapValues, MapAttr, CalSource, dcm_diff, dcm_diff_with_metadata, validate_and_build_sources};
+pub use diff::{
+    dcm_diff, dcm_diff_with_metadata, validate_and_build_sources, CalSource, DcmDiff,
+    DcmDiffResult, DiffMetadata, DiffSummary, MapAttr, MapChangeDetail, MapValues,
+};
 
+use block::Block;
+use blocks::{
+    FESTWERT, FESTWERTEBLOCK, GRUPPENKENNFELD, GRUPPENKENNLINIE, STUETZSTELLENVERTEILUNG,
+};
+use chrono::prelude::*;
+use handlebars::*;
+use indexmap::IndexMap;
+use log::{info, warn};
+use regex::Regex;
+use serde_json::json;
 use std::env;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
-use block::Block;
-use blocks::{FESTWERT, FESTWERTEBLOCK, GRUPPENKENNLINIE, STUETZSTELLENVERTEILUNG, GRUPPENKENNFELD};
 use value::Value;
-use indexmap::IndexMap;
-use log::{warn, info};
-use handlebars::*;
-use serde_json::json;
-use chrono::prelude::*;
-use regex::Regex;
-
 
 /* handler bars helper */
-fn dcm_vector_writer (h: &Helper, _: &Handlebars, _: &Context, _: &mut RenderContext, out: &mut dyn Output) -> HelperResult {
+fn dcm_vector_writer(
+    h: &Helper,
+    _: &Handlebars,
+    _: &Context,
+    _: &mut RenderContext,
+    out: &mut dyn Output,
+) -> HelperResult {
     let vector_type = h.param(0).unwrap().value().render();
     let vector = h.param(1).unwrap().value();
     if let serde_json::Value::Array(arr) = vector {
@@ -32,7 +42,7 @@ fn dcm_vector_writer (h: &Helper, _: &Handlebars, _: &Context, _: &mut RenderCon
         let multi_line = arr.len() > 6;
         let text_flag = arr.iter().all(|x| x.is_string());
         let identifier = if text_flag && vector_type.as_str() == "WERT" {
-            "TEXT"            // convient solution for text values
+            "TEXT" // convient solution for text values
         } else {
             vector_type.as_str()
         };
@@ -40,7 +50,8 @@ fn dcm_vector_writer (h: &Helper, _: &Handlebars, _: &Context, _: &mut RenderCon
             out.write(format!("{}   ", identifier).as_str())?;
             for j in val {
                 if text_flag {
-                    out.write(format!("\"{}\"", j.as_str().unwrap_or("")).as_str())?;      // add double quotes for text values
+                    out.write(format!("\"{}\"", j.as_str().unwrap_or("")).as_str())?;
+                // add double quotes for text values
                 } else {
                     let number = j.as_f64().unwrap_or(0.0);
                     let number_str = format!("{:.17}", number);
@@ -56,25 +67,23 @@ fn dcm_vector_writer (h: &Helper, _: &Handlebars, _: &Context, _: &mut RenderCon
     Ok(())
 }
 
-
 #[derive(PartialEq)]
 pub enum AxisType {
     X,
-    Y
+    Y,
 }
 
 pub struct DcmData {
-    pub blocks: IndexMap<String, Block>
+    pub blocks: IndexMap<String, Block>,
 }
 
 impl DcmData {
     pub fn from_blocks(blocks: IndexMap<String, Block>) -> Self {
-        DcmData {
-            blocks
-        }
+        DcmData { blocks }
     }
 
-    pub fn new(path: &Path) -> Self {  // shall not return error here
+    pub fn new(path: &Path) -> Self {
+        // shall not return error here
         let mut file = File::open(path).unwrap();
         let reader = BufReader::new(&mut file);
         let mut blocks = IndexMap::new();
@@ -83,50 +92,65 @@ impl DcmData {
         let mut line = lines.next();
         while line.is_some() {
             let mut block = Vec::new();
-            if line.as_ref().unwrap().starts_with("FESTWERT ") {    // constant
+            if line.as_ref().unwrap().starts_with("FESTWERT ") {
+                // constant
                 loop {
                     block.push(line.unwrap());
                     line = lines.next();
                     if line.is_none() || line.as_ref().unwrap().starts_with("END") {
                         let constant = block.join("\n").parse::<FESTWERT>().unwrap();
-                        blocks.entry(constant.name.clone())
-                        .and_modify( |_| warn!("Duplicate constant name: {}", constant.name))
-                        .or_insert(Block::Constant(constant));
+                        blocks
+                            .entry(constant.name.clone())
+                            .and_modify(|_| warn!("Duplicate constant name: {}", constant.name))
+                            .or_insert(Block::Constant(constant));
                         break;
                     }
                 }
-            } else if line.as_ref().unwrap().starts_with("TEXTSTRING ") {    // text string constant
+            } else if line.as_ref().unwrap().starts_with("TEXTSTRING ") {
+                // text string constant
                 loop {
                     block.push(line.unwrap());
                     line = lines.next();
                     if line.is_none() || line.as_ref().unwrap().starts_with("END") {
                         let constant = block.join("\n").parse::<FESTWERT>().unwrap();
-                        blocks.entry(constant.name.clone())
-                        .and_modify( |_| warn!("Duplicate constant name: {}", constant.name))
-                        .or_insert(Block::Constant(constant));
+                        blocks
+                            .entry(constant.name.clone())
+                            .and_modify(|_| warn!("Duplicate constant name: {}", constant.name))
+                            .or_insert(Block::Constant(constant));
                         break;
                     }
                 }
-            } else if line.as_ref().unwrap().starts_with("GRUPPENKENNLINIE ") {   // one dimensional table
+            } else if line.as_ref().unwrap().starts_with("GRUPPENKENNLINIE ") {
+                // one dimensional table
                 loop {
                     block.push(line.unwrap());
                     line = lines.next();
                     if line.is_none() || line.as_ref().unwrap().starts_with("END") {
                         let table = block.join("\n").parse::<GRUPPENKENNLINIE>().unwrap();
-                        blocks.entry(table.name.clone())
-                        .and_modify( |_| warn!("Duplicate table name: {}", table.name))
-                        .or_insert(Block::Table(table));
+                        blocks
+                            .entry(table.name.clone())
+                            .and_modify(|_| warn!("Duplicate table name: {}", table.name))
+                            .or_insert(Block::Table(table));
                         break;
                     }
                 }
-            } else if line.as_ref().unwrap().starts_with("STUETZSTELLENVERTEILUNG ") {   // distribution axis
+            } else if line
+                .as_ref()
+                .unwrap()
+                .starts_with("STUETZSTELLENVERTEILUNG ")
+            {
+                // distribution axis
                 loop {
                     block.push(line.unwrap());
                     line = lines.next();
                     if line.is_none() || line.as_ref().unwrap().starts_with("END") {
-                        let distribution = block.join("\n").parse::<STUETZSTELLENVERTEILUNG>().unwrap();
-                        blocks.entry(distribution.name.clone())
-                            .and_modify( |_| warn!("Duplicate distribution name: {}", distribution.name))
+                        let distribution =
+                            block.join("\n").parse::<STUETZSTELLENVERTEILUNG>().unwrap();
+                        blocks
+                            .entry(distribution.name.clone())
+                            .and_modify(|_| {
+                                warn!("Duplicate distribution name: {}", distribution.name)
+                            })
                             .or_insert(Block::Distribution(distribution));
                         break;
                     }
@@ -137,20 +161,22 @@ impl DcmData {
                     line = lines.next();
                     if line.is_none() || line.as_ref().unwrap().starts_with("END") {
                         let map = block.join("\n").parse::<GRUPPENKENNFELD>().unwrap();
-                        blocks.entry(map.name.clone())
-                            .and_modify( |_| warn!("Duplicate map name: {}", map.name))
+                        blocks
+                            .entry(map.name.clone())
+                            .and_modify(|_| warn!("Duplicate map name: {}", map.name))
                             .or_insert(Block::Map(map));
                         break;
                     }
                 }
-            } else if line.as_ref().unwrap().starts_with("FESTWERTEBLOCK "){
+            } else if line.as_ref().unwrap().starts_with("FESTWERTEBLOCK ") {
                 loop {
                     block.push(line.unwrap());
                     line = lines.next();
                     if line.is_none() || line.as_ref().unwrap().starts_with("END") {
                         let fbl = block.join("\n").parse::<FESTWERTEBLOCK>().unwrap();
-                        blocks.entry(fbl.name.clone())
-                            .and_modify( |_| warn!("Duplicate map name: {}", fbl.name))
+                        blocks
+                            .entry(fbl.name.clone())
+                            .and_modify(|_| warn!("Duplicate map name: {}", fbl.name))
                             .or_insert(Block::ConstantBlock(fbl));
                         break;
                     }
@@ -159,9 +185,7 @@ impl DcmData {
                 line = lines.next();
             }
         }
-        DcmData {
-            blocks
-        }
+        DcmData { blocks }
     }
 
     pub fn get_all_variable_names(&self) -> Vec<String> {
@@ -172,17 +196,16 @@ impl DcmData {
         match &block {
             Block::ConstantBlock(cb) => {
                 self.blocks.insert(cb.name.clone(), block);
-            },
+            }
             Block::Distribution(dis) => {
                 self.blocks.insert(dis.name.clone(), block);
-            },
+            }
             Block::Constant(con) => {
                 self.blocks.insert(con.name.clone(), block);
-            },
+            }
             Block::Table(tab) => {
                 self.blocks.insert(tab.name.clone(), block);
-            
-            },
+            }
             Block::Map(map) => {
                 self.blocks.insert(map.name.clone(), block);
             }
@@ -199,7 +222,8 @@ impl DcmData {
 
     pub fn filter_include(&mut self, include_pats: &[String]) {
         // filter blocks by regex pattern: only include blocks that match one of the patterns
-        let patterns = include_pats.iter()
+        let patterns = include_pats
+            .iter()
             .map(|p| Regex::new(p).unwrap())
             .collect::<Vec<Regex>>();
         let mut keys_to_keep = Vec::new();
@@ -213,7 +237,8 @@ impl DcmData {
 
     pub fn filter_exclude(&mut self, exclude_pats: &[String]) {
         // filter blocks by regex pattern: exclude blocks that match one of the patterns
-        let patterns = exclude_pats.iter()
+        let patterns = exclude_pats
+            .iter()
             .map(|p| Regex::new(p).unwrap())
             .collect::<Vec<Regex>>();
         let mut keys_to_remove = Vec::new();
@@ -226,10 +251,9 @@ impl DcmData {
     }
 }
 
-
 pub fn merge_dcm_data(main: &mut DcmData, others: Vec<DcmData>) {
     /*
-    if the same block name exists in both dcms, the block in the others will be discarded. 
+    if the same block name exists in both dcms, the block in the others will be discarded.
     */
     for data in others.iter() {
         for (key, block) in &data.blocks {
@@ -244,7 +268,7 @@ pub fn merge_dcm_data(main: &mut DcmData, others: Vec<DcmData>) {
 
 pub fn update_dcm_data(main: &mut DcmData, others: Vec<DcmData>) {
     /*
-    if the same block name exists in both dcms, the block in the others will be used to update main dcm. 
+    if the same block name exists in both dcms, the block in the others will be used to update main dcm.
     */
     for data in others.iter() {
         for (key, block) in &data.blocks {
@@ -257,8 +281,6 @@ pub fn update_dcm_data(main: &mut DcmData, others: Vec<DcmData>) {
         }
     }
 }
-
-
 
 pub fn write_dcm_data(data: &DcmData, file: &Path) {
     /* handlebars template  */
@@ -278,30 +300,28 @@ pub fn write_dcm_data(data: &DcmData, file: &Path) {
         match blk {
             Block::Constant(c) => {
                 if let Value::TEXT(_) = &c.value {
-                    textstrings.push( json!({
+                    textstrings.push(json!({
                         "name": key,
                         "value": c.value,
                         "desc": blk.get_desc().unwrap_or("".to_string()),
                         "unit": blk.get_w_unit().unwrap_or("unitless".to_string()),
                     }))
                 } else {
-                    constants.push( json!({
+                    constants.push(json!({
                         "name": key,
                         "value": c.value,
                         "desc": blk.get_desc().unwrap_or("".to_string()),
                         "unit": blk.get_w_unit().unwrap_or("unitless".to_string()),
                     }))
                 }
-            },
-            Block::ConstantBlock(c) => {
-                constant_blocks.push(json!( {
-                    "name": key,
-                    "value": c.value,
-                    "desc": blk.get_desc().unwrap_or("".to_string()),
-                    "unit": blk.get_w_unit().unwrap_or("unitless".to_string()),
-                    "dim": c.dim,
-                }))
-            },
+            }
+            Block::ConstantBlock(c) => constant_blocks.push(json!( {
+                "name": key,
+                "value": c.value,
+                "desc": blk.get_desc().unwrap_or("".to_string()),
+                "unit": blk.get_w_unit().unwrap_or("unitless".to_string()),
+                "dim": c.dim,
+            })),
             Block::Table(t) => {
                 let dim = t.value.len();
                 table_blocks.push(json!( {
@@ -314,22 +334,22 @@ pub fn write_dcm_data(data: &DcmData, file: &Path) {
                     "unit_x": blk.get_x_unit().unwrap_or("na".to_string()),
                     "axis_name": blk.get_x_var_name().unwrap_or("".to_string()),
                 }))
-            },
-            Block::Distribution(d) => {
-                axis.push(json!({
-                    "name": key,
-                    "value": d.value.try_into_f64().unwrap_or(&vec![0f64]).clone(),
-                    "desc": blk.get_desc().unwrap_or("".to_string()),
-                    "unit": blk.get_x_unit().unwrap_or("na".to_string()),
-                    "dim": d.dim,
-                }))
-            },
+            }
+            Block::Distribution(d) => axis.push(json!({
+                "name": key,
+                "value": d.value.try_into_f64().unwrap_or(&vec![0f64]).clone(),
+                "desc": blk.get_desc().unwrap_or("".to_string()),
+                "unit": blk.get_x_unit().unwrap_or("na".to_string()),
+                "dim": d.dim,
+            })),
             Block::Map(m) => {
                 let (dim_x, dim_y) = m.dim;
-                let value_block: Vec<(&value::Value, value::Value)> = m.value.iter().zip(m.y_axis.iter())
-                                                    .map(|(x, y)| {
-                                                        (x, value::Value::WERT(vec![*y]))
-                                                    }).collect();
+                let value_block: Vec<(&value::Value, value::Value)> = m
+                    .value
+                    .iter()
+                    .zip(m.y_axis.iter())
+                    .map(|(x, y)| (x, value::Value::WERT(vec![*y])))
+                    .collect();
                 maps.push(json!({
                     "name": key,
                     "value_block": value_block,
@@ -342,8 +362,7 @@ pub fn write_dcm_data(data: &DcmData, file: &Path) {
                     "axis_x": m.x_axis,
                     "axis_x_name": blk.get_x_var_name().unwrap_or("".to_string()),
                     "axis_y_name": blk.get_y_var_name().unwrap_or("".to_string()),
-                })
-                )
+                }))
             }
         }
     }
@@ -370,14 +389,10 @@ pub fn write_dcm_data(data: &DcmData, file: &Path) {
     reg.render_to_write("dcm_file", &data_dict, writer).unwrap();
 }
 
-
-
-
 #[cfg(test)]
 mod tests {
-    use rstest::*;
     use super::*;
-
+    use rstest::*;
 
     #[rstest]
     fn test_dcm_write() {
@@ -406,9 +421,7 @@ mod tests {
         let festwert = FESTWERT::from_f64(name.clone(), value, desc, unit);
         let mut blocks = IndexMap::new();
         blocks.insert(name, Block::Constant(festwert));
-        let dcm_data = DcmData {
-            blocks
-        };
+        let dcm_data = DcmData { blocks };
         let path = Path::new("./output/festwert.DCM");
         write_dcm_data(&dcm_data, path);
     }

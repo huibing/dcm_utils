@@ -1,8 +1,8 @@
-use log::warn;
 use crate::attr::value_attr::ValueAttr;
+use log::warn;
+use serde::de::{self, SeqAccess, Visitor};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::error::Error;
-use serde::{Serialize, Serializer, Deserialize, Deserializer};
-use serde::de::{self, Visitor, SeqAccess};
 use std::fmt;
 
 #[derive(Debug, Clone)]
@@ -18,7 +18,6 @@ impl Default for Value {
 }
 
 impl Value {
-
     pub fn new() -> Self {
         Value::WERT(Vec::new())
     }
@@ -66,18 +65,16 @@ impl Value {
 }
 
 impl From<ValueAttr> for Value {
-
     fn from(value: ValueAttr) -> Self {
         match value {
             ValueAttr::WERT(v) => Value::WERT(v),
             ValueAttr::TEXT(v) => Value::TEXT(v),
-            _ => Value::WERT(vec![]),  // will not come here
+            _ => Value::WERT(vec![]), // will not come here
         }
     }
 }
 
 impl PartialEq for Value {
-    
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Value::WERT(v1), Value::WERT(v2)) => {
@@ -85,7 +82,7 @@ impl PartialEq for Value {
                     return false;
                 }
                 v1.iter().zip(v2.iter()).all(|(a, b)| a == b)
-            },
+            }
             (Value::TEXT(v1), Value::TEXT(v2)) => v1 == v2,
             _ => false,
         }
@@ -114,7 +111,15 @@ impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Value::WERT(values) => {
-                write!(f, "WERT[{}]", values.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(", "))
+                write!(
+                    f,
+                    "WERT[{}]",
+                    values
+                        .iter()
+                        .map(|v| v.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
             }
             Value::TEXT(values) => {
                 write!(f, "TEXT[{}]", values.join(", "))
@@ -175,8 +180,8 @@ impl<'de> Deserialize<'de> for Value {
 
 #[cfg(test)]
 mod tests {
-    use rstest::*;
     use super::*;
+    use rstest::*;
     use serde_json;
 
     #[rstest]

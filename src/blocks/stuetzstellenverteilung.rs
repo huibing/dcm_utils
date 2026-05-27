@@ -1,10 +1,9 @@
-use std::str::FromStr;
 use crate::attr::attr_arbitor::Attr;
 use crate::attr::string_attr::StringAttr;
 use crate::attr::value_attr::ValueAttr;
 use crate::value::Value;
-use log::{warn, info};
-
+use log::{info, warn};
+use std::str::FromStr;
 
 #[derive(Clone)]
 pub struct STUETZSTELLENVERTEILUNG {
@@ -21,35 +20,48 @@ impl FromStr for STUETZSTELLENVERTEILUNG {
         let mut lines = s.lines();
         let mut attrs = Vec::new();
         let mut value: Value = Value::new();
-        let first_line = lines.next().ok_or("no first line found in STUETZSTELLENVERTEILUNG")?;
-        let name = first_line.split_whitespace().nth(1)
-            .ok_or("no name found in STUETZSTELLENVERTEILUNG")?.to_string();
-        let dim = first_line.split_whitespace().nth(2)
-            .ok_or("no dim found in STUETZSTELLENVERTEILUNG")?.parse::<usize>().unwrap();
+        let first_line = lines
+            .next()
+            .ok_or("no first line found in STUETZSTELLENVERTEILUNG")?;
+        let name = first_line
+            .split_whitespace()
+            .nth(1)
+            .ok_or("no name found in STUETZSTELLENVERTEILUNG")?
+            .to_string();
+        let dim = first_line
+            .split_whitespace()
+            .nth(2)
+            .ok_or("no dim found in STUETZSTELLENVERTEILUNG")?
+            .parse::<usize>()
+            .unwrap();
         for line in lines {
             match line.parse::<Attr>() {
                 Ok(Attr::StringAttr(sa)) => attrs.push(sa),
                 Ok(Attr::ValueAttr(va)) => {
-                    if let ValueAttr::STX(w) = va{
+                    if let ValueAttr::STX(w) = va {
                         value.extend_f64(w);
                     } else {
                         return Err("unknown value type");
                     }
-                },
-                Ok(Attr::EmptyLine) => {},
+                }
+                Ok(Attr::EmptyLine) => {}
                 Ok(Attr::AxisVar(_)) => {
-                    warn!("STUETZSTELLENVERTEILUNG shall not have axis var line: {}", line);
+                    warn!(
+                        "STUETZSTELLENVERTEILUNG shall not have axis var line: {}",
+                        line
+                    );
                 }
                 Err(error_msg) => {
-                    info!("error parsing line: {}, error: {}", line, error_msg);  //shall not stop the parser
+                    info!("error parsing line: {}, error: {}", line, error_msg);
+                    //shall not stop the parser
                 }
             }
         }
-        Ok( Self {
+        Ok(Self {
             name,
             attrs,
             value,
-            dim
+            dim,
         })
     }
 }
@@ -66,11 +78,12 @@ impl STUETZSTELLENVERTEILUNG {
         let value = Value::WERT(value.to_owned());
         Self {
             name: String::from(name),
-            attrs: vec![StringAttr::new("LANGNAME", desc),
-                        StringAttr::new("EINHEIT_X", unit)],
+            attrs: vec![
+                StringAttr::new("LANGNAME", desc),
+                StringAttr::new("EINHEIT_X", unit),
+            ],
             value,
-            dim
+            dim,
         }
     }
-
 }

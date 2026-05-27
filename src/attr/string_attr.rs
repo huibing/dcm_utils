@@ -1,6 +1,6 @@
-use std::str::FromStr;
 use crate::AxisType;
 use serde::Serialize;
+use std::str::FromStr;
 
 const STRING_ATTR_IDENTIFIER: [&str; 4] = ["LANGNAME", "EINHEIT_X", "EINHEIT_Y", "EINHEIT_W"];
 
@@ -20,9 +20,12 @@ impl FromStr for StringAttr {
             return Err("Invalid identifier");
         }
         let identifier = words.0.to_string();
-        let value = words.1.strip_prefix("\"")         // string values are enclosed in double quotes
-                .and_then(|s| s.strip_suffix("\"")).map(|s| s.to_string())
-                .ok_or("Invalid string attribute")?;
+        let value = words
+            .1
+            .strip_prefix("\"") // string values are enclosed in double quotes
+            .and_then(|s| s.strip_suffix("\""))
+            .map(|s| s.to_string())
+            .ok_or("Invalid string attribute")?;
         Ok(StringAttr { identifier, value })
     }
 }
@@ -36,18 +39,24 @@ impl StringAttr {
     }
 }
 
-
 pub fn eval_string_attr(v: &[StringAttr], identifier: &str) -> Option<String> {
-    v.iter().find(|a| a.identifier == identifier).map(|a| a.value.clone())
+    v.iter()
+        .find(|a| a.identifier == identifier)
+        .map(|a| a.value.clone())
 }
 
 pub fn is_string_attr(s: &str) -> bool {
-    s.split_whitespace().next().map(|s| STRING_ATTR_IDENTIFIER.contains(&s)).unwrap_or(false)
+    s.split_whitespace()
+        .next()
+        .map(|s| STRING_ATTR_IDENTIFIER.contains(&s))
+        .unwrap_or(false)
 }
 
 pub fn is_axis_var(s: &str) -> bool {
-    s.split_whitespace().next()
-        .map(|s| s == "*SSTX" || s == "*SSTY").unwrap_or(false)
+    s.split_whitespace()
+        .next()
+        .map(|s| s == "*SSTX" || s == "*SSTY")
+        .unwrap_or(false)
 }
 
 pub struct AxisVar {
@@ -70,7 +79,10 @@ impl FromStr for AxisVar {
         } else {
             return Err("Invalid axis type identifier");
         };
-        Ok( Self{axistype, identifier: words[1].to_string() })
+        Ok(Self {
+            axistype,
+            identifier: words[1].to_string(),
+        })
     }
 }
 

@@ -1,11 +1,11 @@
-use crate::DcmData;
-use crate::value::Value;
+use crate::attr::string_attr::StringAttr;
 use crate::block::Block;
 use crate::blocks::GRUPPENKENNFELD;
-use crate::attr::string_attr::StringAttr;
-use log::info;
-use serde::{Serialize, Deserialize};
 use crate::gen::gen_dcm_data;
+use crate::value::Value;
+use crate::DcmData;
+use log::info;
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::path::PathBuf;
 use std::time::SystemTime;
@@ -31,8 +31,7 @@ impl CalSource {
     pub fn label(&self) -> String {
         match self {
             CalSource::Dcm(path) => path.display().to_string(),
-            CalSource::A2lHex { a2l, hex } =>
-                format!("{} + {}", a2l.display(), hex.display()),
+            CalSource::A2lHex { a2l, hex } => format!("{} + {}", a2l.display(), hex.display()),
         }
     }
 }
@@ -64,7 +63,10 @@ pub fn validate_and_build_sources(
         sources.push(CalSource::Dcm(path.clone()));
     }
     for (a, h) in a2l.iter().zip(hex.iter()) {
-        sources.push(CalSource::A2lHex { a2l: a.clone(), hex: h.clone() });
+        sources.push(CalSource::A2lHex {
+            a2l: a.clone(),
+            hex: h.clone(),
+        });
     }
     let right = sources.pop().unwrap();
     let left = sources.pop().unwrap();
@@ -105,9 +107,18 @@ pub struct DiffSummary {
 
 impl DiffSummary {
     pub fn from_differences(differences: &[DcmDiff]) -> Self {
-        let new_count = differences.iter().filter(|d| matches!(d, DcmDiff::New { .. })).count();
-        let deleted_count = differences.iter().filter(|d| matches!(d, DcmDiff::Deleted { .. })).count();
-        let changed_count = differences.iter().filter(|d| matches!(d, DcmDiff::Changed { .. } | DcmDiff::ChangedMap { .. })).count();
+        let new_count = differences
+            .iter()
+            .filter(|d| matches!(d, DcmDiff::New { .. }))
+            .count();
+        let deleted_count = differences
+            .iter()
+            .filter(|d| matches!(d, DcmDiff::Deleted { .. }))
+            .count();
+        let changed_count = differences
+            .iter()
+            .filter(|d| matches!(d, DcmDiff::Changed { .. } | DcmDiff::ChangedMap { .. }))
+            .count();
 
         Self {
             new_count,
@@ -175,7 +186,9 @@ impl From<&GRUPPENKENNFELD> for MapValues {
         };
 
         // Convert 2D values (Vec<Value>) to Vec<Vec<f64>>
-        let values_2d: Vec<Vec<f64>> = map.value.iter()
+        let values_2d: Vec<Vec<f64>> = map
+            .value
+            .iter()
             .filter_map(|v| match v {
                 Value::WERT(row) => Some(row.clone()),
                 _ => None,
@@ -217,29 +230,29 @@ impl DcmDiffResult {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum DcmDiff {
-    New{
+    New {
         name: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         description: Option<String>,
     },
-    Deleted{
+    Deleted {
         name: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         description: Option<String>,
     },
-    Changed{
+    Changed {
         name: String,
         old: Value,
         new: Value,
         #[serde(skip_serializing_if = "Option::is_none")]
         description: Option<String>,
     },
-    ChangedMap{
+    ChangedMap {
         name: String,
         detail: MapChangeDetail,
         #[serde(skip_serializing_if = "Option::is_none")]
         description: Option<String>,
-    }
+    },
 }
 
 pub fn dcm_diff(left: &DcmData, right: &DcmData) -> Vec<DcmDiff> {
@@ -254,7 +267,7 @@ fn dcm_diff_with_details(left: &DcmData, right: &DcmData, _detailed: bool) -> Ve
     for (name, left_block) in left.blocks.iter() {
         if !right.blocks.contains_key(name) {
             let description = format!("Deleted {} block '{}'", block_type_name(left_block), name);
-            diff.push(DcmDiff::Deleted{
+            diff.push(DcmDiff::Deleted {
                 name: name.clone(),
                 description: Some(description),
             });
@@ -267,7 +280,7 @@ fn dcm_diff_with_details(left: &DcmData, right: &DcmData, _detailed: bool) -> Ve
             None => {
                 // Block exists in right but not in left - it's new
                 let description = format!("New {} block '{}'", block_type_name(right_block), name);
-                diff.push(DcmDiff::New{
+                diff.push(DcmDiff::New {
                     name: name.clone(),
                     description: Some(description),
                 });
@@ -283,14 +296,14 @@ fn dcm_diff_with_details(left: &DcmData, right: &DcmData, _detailed: bool) -> Ve
                                 old_values: MapValues::from(left_map),
                                 new_values: MapValues::from(right_map),
                             };
-                            diff.push(DcmDiff::ChangedMap{
+                            diff.push(DcmDiff::ChangedMap {
                                 name: name.clone(),
                                 detail,
                                 description: Some(description),
                             });
                         }
                         _ => {
-                            diff.push(DcmDiff::Changed{
+                            diff.push(DcmDiff::Changed {
                                 name: name.clone(),
                                 old: left_block.get_values().clone(),
                                 new: right_block.get_values().clone(),
@@ -335,10 +348,17 @@ fn generate_change_description(name: &str, left: &Block, right: &Block) -> Strin
         (Block::Table(left_table), Block::Table(right_table)) => {
             let mut changes = Vec::new();
             if left_table.axis.len() != right_table.axis.len() {
-                changes.push(format!("axis points: {} -> {}", left_table.axis.len(), right_table.axis.len()));
+                changes.push(format!(
+                    "axis points: {} -> {}",
+                    left_table.axis.len(),
+                    right_table.axis.len()
+                ));
             }
             if left_table.axis_var_name != right_table.axis_var_name {
-                changes.push(format!("axis var: {} -> {}", left_table.axis_var_name, right_table.axis_var_name));
+                changes.push(format!(
+                    "axis var: {} -> {}",
+                    left_table.axis_var_name, right_table.axis_var_name
+                ));
             }
             if left_table.value != right_table.value {
                 changes.push("values changed".to_string());
@@ -346,19 +366,32 @@ fn generate_change_description(name: &str, left: &Block, right: &Block) -> Strin
             if changes.is_empty() {
                 format!("GRUPPENKENNLINIE '{}' changed", name)
             } else {
-                format!("GRUPPENKENNLINIE '{}' changed: {}", name, changes.join(", "))
+                format!(
+                    "GRUPPENKENNLINIE '{}' changed: {}",
+                    name,
+                    changes.join(", ")
+                )
             }
         }
         (Block::Map(left_map), Block::Map(right_map)) => {
             let mut changes = Vec::new();
             if left_map.dim != right_map.dim {
-                changes.push(format!("dimensions: {:?} -> {:?}", left_map.dim, right_map.dim));
+                changes.push(format!(
+                    "dimensions: {:?} -> {:?}",
+                    left_map.dim, right_map.dim
+                ));
             }
             if left_map.x_axis_name != right_map.x_axis_name {
-                changes.push(format!("X-axis var: {} -> {}", left_map.x_axis_name, right_map.x_axis_name));
+                changes.push(format!(
+                    "X-axis var: {} -> {}",
+                    left_map.x_axis_name, right_map.x_axis_name
+                ));
             }
             if left_map.y_axis_name != right_map.y_axis_name {
-                changes.push(format!("Y-axis var: {} -> {}", left_map.y_axis_name, right_map.y_axis_name));
+                changes.push(format!(
+                    "Y-axis var: {} -> {}",
+                    left_map.y_axis_name, right_map.y_axis_name
+                ));
             }
             if left_map.value_flat != right_map.value_flat {
                 changes.push("values changed".to_string());
@@ -405,7 +438,11 @@ mod tests {
     fn test_cal_source_label_dcm() {
         let src = CalSource::Dcm(PathBuf::from("test-dcms/example.DCM"));
         let label = src.label();
-        assert!(label.contains("example.DCM"), "Label should contain the file name, got: {}", label);
+        assert!(
+            label.contains("example.DCM"),
+            "Label should contain the file name, got: {}",
+            label
+        );
     }
 
     #[test]
@@ -417,7 +454,10 @@ mod tests {
         let label = src.label();
         assert!(label.contains("cal.a2l"), "Label should contain a2l path");
         assert!(label.contains("flash.hex"), "Label should contain hex path");
-        assert!(label.contains(" + "), "Label should contain ' + ' separator");
+        assert!(
+            label.contains(" + "),
+            "Label should contain ' + ' separator"
+        );
     }
 
     #[test]

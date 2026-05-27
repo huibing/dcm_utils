@@ -1,6 +1,7 @@
+use crate::blocks::{
+    FESTWERT, FESTWERTEBLOCK, GRUPPENKENNFELD, GRUPPENKENNLINIE, STUETZSTELLENVERTEILUNG,
+};
 use crate::value::Value;
-use crate::blocks::{FESTWERT, FESTWERTEBLOCK, GRUPPENKENNLINIE, STUETZSTELLENVERTEILUNG, GRUPPENKENNFELD};
-
 
 #[derive(Clone)]
 pub enum Block {
@@ -40,7 +41,10 @@ impl Block {
             Block::Distribution(d) => &d.attrs,
             Block::Map(m) => &m.attrs,
         };
-        attrs.iter().find(|k| k.identifier == attr_name).map(|v| v.value.clone())
+        attrs
+            .iter()
+            .find(|k| k.identifier == attr_name)
+            .map(|v| v.value.clone())
     }
 
     pub fn get_w_unit(&self) -> Option<String> {
@@ -80,9 +84,13 @@ impl PartialEq for Block {
         match (self, other) {
             (Block::Constant(c1), Block::Constant(c2)) => c1.value == c2.value,
             (Block::ConstantBlock(b1), Block::ConstantBlock(b2)) => b1.value == b2.value,
-            (Block::Table(t1), Block::Table(t2)) => t1.value == t2.value && t1.axis == t2.axis && t1.axis_var_name == t2.axis_var_name,
-            (Block::Distribution(d1), Block::Distribution(d2)) => d1.value == d2.value ,
-            (Block::Map(m1), Block::Map(m2)) => m1.value_flat == m2.value_flat && m1.x_axis == m2.x_axis && m1.y_axis == m2.y_axis,
+            (Block::Table(t1), Block::Table(t2)) => {
+                t1.value == t2.value && t1.axis == t2.axis && t1.axis_var_name == t2.axis_var_name
+            }
+            (Block::Distribution(d1), Block::Distribution(d2)) => d1.value == d2.value,
+            (Block::Map(m1), Block::Map(m2)) => {
+                m1.value_flat == m2.value_flat && m1.x_axis == m2.x_axis && m1.y_axis == m2.y_axis
+            }
             _ => false,
         }
     }
@@ -91,9 +99,8 @@ impl PartialEq for Block {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rstest::*;
     use crate::attr::string_attr::eval_string_attr;
-
+    use rstest::*;
 
     #[rstest]
     fn test_festwert() {
@@ -138,7 +145,7 @@ mod tests {
                                 ST/X   1.0000000000000000   2.0000000000000000   3.0000000000000000   
                                 WERT   1.0000000000000000   2.0000000000000000   3.0000000000000000   
                                 END"#;
-        let table:GRUPPENKENNLINIE = dcm_line.parse().unwrap();
+        let table: GRUPPENKENNLINIE = dcm_line.parse().unwrap();
         assert_eq!(table.name, "CDCBlnd_ModeSelCor_T");
         assert_eq!(table.dim, 3);
         assert_eq!(table.value, Value::WERT(vec![1.0, 2.0, 3.0]));
@@ -148,7 +155,7 @@ mod tests {
     }
 
     #[rstest]
-    fn test_one_dim_table_ex () {
+    fn test_one_dim_table_ex() {
         let dcm_line = r#"GRUPPENKENNLINIE CDCAct_DmprICmdRear_T 9
                                 LANGNAME "Damping ratio to damper current conversion for rear dampers" 
                                 EINHEIT_X "percent"
@@ -166,8 +173,16 @@ mod tests {
         assert_eq!(table.dim, 9);
         assert_eq!(table.value.len(), 9);
         assert_eq!(table.axis.len(), 9);
-        assert_eq!(table.value, Value::WERT(vec![320.0, 480.0, 640.0, 800.0, 960.0, 1120.0, 1280.0, 1440.0, 1600.0]));
-        assert_eq!(table.axis, vec![0.0, 12.5, 25.0, 37.5, 50.0, 62.5, 75.0, 87.5, 100.0]);
+        assert_eq!(
+            table.value,
+            Value::WERT(vec![
+                320.0, 480.0, 640.0, 800.0, 960.0, 1120.0, 1280.0, 1440.0, 1600.0
+            ])
+        );
+        assert_eq!(
+            table.axis,
+            vec![0.0, 12.5, 25.0, 37.5, 50.0, 62.5, 75.0, 87.5, 100.0]
+        );
     }
 
     #[rstest]
@@ -184,7 +199,20 @@ mod tests {
         assert_eq!(table.dim, 9);
         assert_eq!(table.value.len(), 9);
         assert_eq!(table.attrs.len(), 2);
-        assert_eq!(table.value, Value::WERT(vec![0.0, 29.9812488555908200, 39.9937477111816410, 60.0187492370605470, 79.9874954223632810, 100.0124969482421900, 119.9812469482421900, 150.0187530517578100, 200.0249938964843700]));      
+        assert_eq!(
+            table.value,
+            Value::WERT(vec![
+                0.0,
+                29.9812488555908200,
+                39.9937477111816410,
+                60.0187492370605470,
+                79.9874954223632810,
+                100.0124969482421900,
+                119.9812469482421900,
+                150.0187530517578100,
+                200.0249938964843700
+            ])
+        );
     }
 
     #[rstest]
@@ -216,7 +244,18 @@ mod tests {
         assert_eq!(block.name, "CDCBlnd_RatDmpgMaxFrnt_M");
         assert_eq!(block.dim, (3, 7));
         assert_eq!(block.x_axis, vec![1., 2., 3.]);
-        assert_eq!(block.y_axis, vec![0.0, 29.9812488555908200, 39.9937477111816410, 60.0187492370605470, 79.9874954223632810, 100.0124969482421900, 119.9812469482421900]);
+        assert_eq!(
+            block.y_axis,
+            vec![
+                0.0,
+                29.9812488555908200,
+                39.9937477111816410,
+                60.0187492370605470,
+                79.9874954223632810,
+                100.0124969482421900,
+                119.9812469482421900
+            ]
+        );
         assert_eq!(block.value.len(), 7);
         assert_eq!(block.value[0], Value::WERT(vec![100.0, 100.0, 100.0]));
         assert_eq!(block.value[1], Value::WERT(vec![100.0, 100.0, 100.0]));
@@ -281,12 +320,34 @@ mod tests {
         assert_eq!(map.dim, (16, 9));
         assert_eq!(map.x_axis_name, "CDCRdPMC_BdyRollRate_Ax");
         assert_eq!(map.y_axis_name, "CDCRdPMC_CtrlCorFacVehSpd_Ax");
-        assert_eq!(map.x_axis, vec![-21.0, -15.0, -9.0, -6.0, -3.0, -2.0, -1.0, -0.5, 0.5, 1.0, 2.0, 3.0, 6.0, 9.0, 15.0, 21.0]);
-        assert_eq!(map.y_axis, vec![0.0, 20.0249996185302730, 39.9937477111816410, 60.0187492370605470, 79.9874954223632810, 100.0124969482421900, 119.9812469482421900, 150.0187530517578100, 209.9812469482421900]);
+        assert_eq!(
+            map.x_axis,
+            vec![
+                -21.0, -15.0, -9.0, -6.0, -3.0, -2.0, -1.0, -0.5, 0.5, 1.0, 2.0, 3.0, 6.0, 9.0,
+                15.0, 21.0
+            ]
+        );
+        assert_eq!(
+            map.y_axis,
+            vec![
+                0.0,
+                20.0249996185302730,
+                39.9937477111816410,
+                60.0187492370605470,
+                79.9874954223632810,
+                100.0124969482421900,
+                119.9812469482421900,
+                150.0187530517578100,
+                209.9812469482421900
+            ]
+        );
         assert_eq!(eval_string_attr(&map.attrs, "LANGNAME").unwrap(), "Roll factor map based on vehicle speed and body roll rate for selected damping mode at compression state for front axle");
         assert_eq!(eval_string_attr(&map.attrs, "EINHEIT_X").unwrap(), "deg/s");
         assert_eq!(eval_string_attr(&map.attrs, "EINHEIT_Y").unwrap(), "km/h");
-        assert_eq!(eval_string_attr(&map.attrs, "EINHEIT_W").unwrap(), "unitless");
+        assert_eq!(
+            eval_string_attr(&map.attrs, "EINHEIT_W").unwrap(),
+            "unitless"
+        );
     }
 
     #[rstest]
@@ -306,6 +367,4 @@ mod tests {
         assert_eq!(blk.get_w_unit().unwrap(), "na");
         assert_eq!(blk.get_desc().unwrap(), "Door check setup for Easy Entry Control, 1 = Disabled 0 = Enabled [FL,FR,RL,RR,Boot,Bonnet]");
     }
-
 }
-
