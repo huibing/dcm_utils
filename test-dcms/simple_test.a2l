@@ -1,0 +1,75 @@
+ASAP2_VERSION 1 61
+/begin PROJECT test_project "Test Project"
+/begin MODULE test_module "Test Module"
+
+/begin MOD_COMMON "Common"
+/end MOD_COMMON
+
+/begin IF_DATA XCP
+/end IF_DATA
+
+/begin MOD_PAR "Parameters"
+/end MOD_PAR
+
+/begin RECORD_LAYOUT Scalar_FLOAT64
+  FNC_VALUES 1 FLOAT64_IEEE COLUMN_DIR PBYTE
+/end RECORD_LAYOUT
+
+/begin RECORD_LAYOUT Curve_3x_FLOAT64
+  FNC_VALUES 3 FLOAT64_IEEE COLUMN_DIR PBYTE
+/end RECORD_LAYOUT
+
+/begin RECORD_LAYOUT ValBlk_4x_UBYTE
+  FNC_VALUES 4 UBYTE COLUMN_DIR PBYTE
+/end RECORD_LAYOUT
+
+/begin CHARACTERISTIC
+  test_scalar
+  "Test scalar value"
+  VALUE
+  0x8000
+  Scalar_FLOAT64
+  0
+  cm_identical
+  100.0 -100.0
+/end CHARACTERISTIC
+
+/begin CHARACTERISTIC
+  test_curve
+  "Test curve"
+  CURVE
+  0x8030
+  Curve_3x_FLOAT64
+  0
+  cm_identical
+  6000.0 -50.0
+  /begin AXIS_DESCR
+    FIX_AXIS
+    test_curve_input
+    cm_identical
+    3
+    0.0
+    10.0
+    FIX_AXIS_PAR 0 10 3
+  /end AXIS_DESCR
+/end CHARACTERISTIC
+
+/begin CHARACTERISTIC
+  test_valblk
+  "Test value block"
+  VAL_BLK
+  0x8050
+  ValBlk_4x_UBYTE
+  0
+  cm_identical
+  100.0 0.0
+  NUMBER 4
+/end CHARACTERISTIC
+
+/begin COMPU_METHOD cm_identical
+  "identical"
+  IDENTICAL "%6.2" "unitless"
+/end COMPU_METHOD
+
+/end MODULE
+/end PROJECT

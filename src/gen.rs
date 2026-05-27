@@ -259,3 +259,65 @@ fn extracted_map_to_block(m: &a2ldeser::extractor::ExtractedMap, langname: &str)
         &unit_y,
     )))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use a2ldeser::extractor::{ExtractedValue, ExtractedValBlk, ExtractedCurve};
+    use a2ldeser::extractor::PhysicalValue;
+    use crate::value::Value;
+
+    #[test]
+    fn test_extracted_value_numeric_to_festwert() {
+        let v = ExtractedValue {
+            name: "test".to_string(),
+            raw: a2ldeser::types::A2lValue::F64(42.0),
+            physical: PhysicalValue::Numeric(42.0),
+            unit: "mm".to_string(),
+        };
+        let block = extracted_value_to_block(&v, "Test desc");
+        match block {
+            Block::Constant(c) => {
+                assert_eq!(c.name, "test");
+                assert_eq!(c.value, Value::WERT(vec![42.0]));
+                assert_eq!(c.attrs.iter().find(|a| a.identifier == "LANGNAME").unwrap().value, "Test desc");
+                assert_eq!(c.attrs.iter().find(|a| a.identifier == "EINHEIT_W").unwrap().value, "mm");
+            }
+            _ => panic!("Expected Constant"),
+        }
+    }
+
+    #[test]
+    fn test_extracted_curve_skip_verbal() {
+        let c = ExtractedCurve {
+            name: "bad_curve".to_string(),
+            x_axis: vec![1.0, 2.0],
+            x_unit: "rpm".to_string(),
+            values: vec![PhysicalValue::Numeric(1.0), PhysicalValue::Verbal("BAD".into())],
+            unit: "Nm".to_string(),
+        };
+        let result = extracted_curve_to_block(&c, "desc");
+        assert!(result.is_none(), "Curve with verbal values should be skipped");
+    }
+
+    #[test]
+    fn test_extracted_valblk_mixed_to_text() {
+        let vb = ExtractedValBlk {
+            name: "mixed".to_string(),
+            values: vec![
+                PhysicalValue::Numeric(1.0),
+                PhysicalValue::Verbal("TWO".into()),
+                PhysicalValue::Numeric(3.0),
+            ],
+            unit: "deg".to_string(),
+        };
+        let block = extracted_valblk_to_block(&vb, "desc");
+        match block {
+            Block::ConstantBlock(c) => {
+                assert_eq!(c.name, "mixed");
+                assert_eq!(c.value, Value::TEXT(vec!["1".into(), "TWO".into(), "3".into()]));
+            }
+            _ => panic!("Expected ConstantBlock"),
+        }
+    }
+}

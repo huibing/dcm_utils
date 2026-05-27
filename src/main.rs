@@ -353,6 +353,29 @@ mod tests {
     }
 
     #[rstest]
+    fn test_gen_basic() {
+        let a2l_path = std::path::Path::new("./test-dcms/simple_test.a2l");
+        let hex_path = std::path::Path::new("./test-dcms/simple_test.hex");
+        let dcm_data = dcm_utils::gen::gen_dcm_data(a2l_path, hex_path)
+            .expect("gen_dcm_data should succeed");
+
+        // Check VALUE -> FESTWERT
+        assert!(dcm_data.contains_block("test_scalar"));
+        let block = dcm_data.blocks.get("test_scalar").unwrap();
+        let values = block.get_values().try_into_f64().unwrap();
+        assert!((values[0] - 42.0).abs() < 0.001);
+
+        // Check CURVE -> GRUPPENKENNLINIE
+        assert!(dcm_data.contains_block("test_curve"));
+
+        // Check VAL_BLK -> FESTWERTEBLOCK
+        assert!(dcm_data.contains_block("test_valblk"));
+
+        // Check that derived axis block was created for test_curve
+        assert!(dcm_data.contains_block("test_curve_X"));
+    }
+
+    #[rstest]
     fn test_ihex_target() {
         use ihex::Reader;
         let path = "./test-dcms/1.hex";
