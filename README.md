@@ -13,6 +13,7 @@ DCM Utils is a powerful utility designed for automotive engineers working with E
 - **🔄 Update**: Apply calibration changes from one or more DCM files to a base file
 - **🔍 Filter**: Include or exclude variables using regex patterns
 - **📊 Diff**: Compare two DCM files and identify differences
+- **🔧 Gen**: Generate DCM files from A2L calibration descriptions and Intel HEX flash images
 - **📝 Output**: Generate well-formatted DCM files using Handlebars templates
 
 ## Supported DCM Block Types
@@ -63,6 +64,7 @@ Available commands:
 - `update` - Update a DCM file with data from other files
 - `filter` - Filter variables by regex patterns
 - `diff` - Compare two DCM files
+- `gen` - Generate DCM file from A2L and HEX calibration files
 - `help` - Show help information
 
 ### Merge Command
@@ -118,33 +120,67 @@ dcm_utils filter input.DCM --exclude "Temp.*" "Test.*" -o filtered.DCM
 
 ### Diff Command
 
-Compare two DCM files and generate a detailed difference report.
+Compare calibration data across DCM files and A2L+HEX pairs. The diff engine normalizes all sources to `DcmData` before comparison, enabling cross-format diff.
 
 ```bash
-dcm_utils diff original.DCM modified.DCM -o diff.json
+# DCM vs DCM
+dcm_utils diff --dcm original.DCM --dcm modified.DCM -o diff.json
+
+# DCM vs A2L+HEX (DCM ordered first)
+dcm_utils diff --dcm ref.DCM --a2l calibration.a2l -x flash.hex -o diff.json
+
+# A2L+HEX vs A2L+HEX
+dcm_utils diff --a2l v1.a2l -x v1.hex --a2l v2.a2l -x v2.hex -o diff.json
 ```
 
 **Output:**
 - Console summary with color-coded statistics
 - JSON file with detailed differences:
-  - `New` - Variables present only in the modified file
-  - `Deleted` - Variables present only in the original file
+  - `New` - Variables present only in the right source
+  - `Deleted` - Variables present only in the left source
   - `Changed` - Variables with different values
   - `ChangedMap` - 2D maps with differences (full JSON representation)
 
 **Options:**
+- `--dcm <PATH>` - A DCM file source (repeatable, one per side)
+- `--a2l <PATH>` - An A2L calibration description (paired with `--hex` on the same side)
+- `-x, --hex <PATH>` - An Intel HEX flash image (paired with `--a2l` on the same side)
 - `-o, --output <OUTPUT>` - Output JSON file path (default: `diff.json`)
 
 **Example Output:**
 ```
-=== DCM Diff Results ===
-New blocks: 5
-Deleted blocks: 2
-Changed blocks: 15
-Total differences: 22
+=== Calibration Diff Results ===
+Left:  test-dcms/test1.DCM
+Right: test-dcms/simple_test.a2l + test-dcms/simple_test.hex
+Timestamp: 1779877997
+
+New blocks: 4
+Deleted blocks: 10
+Changed blocks: 0
+Total differences: 14
 
 Diff details written to: diff.json
 ```
+
+### Gen Command
+
+Generate a DCM file from A2L calibration descriptions and an Intel HEX flash image.
+
+```bash
+dcm_utils gen --a2l calibration.a2l -x flash.hex -o all_cali.DCM
+```
+
+**Behavior:**
+- Extracts all calibration characteristics from the A2L file and HEX binary
+- Maps A2L types to DCM block types (VALUE→FESTWERT, CURVE→GRUPPENKENNLINIE+axis, MAP→GRUPPENKENNFELD+axes, VAL_BLK→FESTWERTEBLOCK, ASCII→FESTWERT)
+- Failed extractions are skipped with a summary printed to stderr
+- CURVE/MAP blocks with verbal (non-numeric) values are skipped with a warning
+- Mixed numeric/verbal VAL_BLK blocks are converted entirely to TEXT format
+
+**Options:**
+- `-a, --a2l <A2L>` - Path to the A2L calibration description file (required)
+- `-x, --hex <HEX>` - Path to the Intel HEX flash image (required)
+- `-o, --output <OUTPUT>` - Output DCM file path (default: `generated.dcm`)
 
 ## DCM File Format
 
@@ -201,6 +237,7 @@ src/
 ├── block.rs         # Block enum (unified interface)
 ├── value.rs         # Value enum (WERT/TEXT)
 ├── diff.rs          # Diff functionality
+├── gen.rs           # A2L+HEX to DCM generation
 ├── blocks/          # Block type implementations
 │   ├── festwert.rs
 │   ├── festwerteblock.rs
@@ -266,6 +303,8 @@ cargo fmt
 | `clap` | CLI argument parsing with derive macros |
 | `serde_json` | JSON serialization for diff output |
 | `regex` | Pattern matching for filter command |
+| `a2ldeser` | A2L+HEX calibration data extraction |
+| `a2lfile` | A2L file parser |
 | `colored` | Terminal color output |
 | `rstest` | Parametrized testing framework |
 
