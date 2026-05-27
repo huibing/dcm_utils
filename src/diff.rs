@@ -5,22 +5,87 @@ use crate::blocks::GRUPPENKENNFELD;
 use crate::attr::string_attr::StringAttr;
 use log::info;
 use serde::{Serialize, Deserialize};
-use std::path::Path;
+use crate::gen::gen_dcm_data;
+use std::error::Error;
+use std::path::PathBuf;
 use std::time::SystemTime;
+
+#[derive(Debug, Clone)]
+pub enum CalSource {
+    Dcm(PathBuf),
+    A2lHex { a2l: PathBuf, hex: PathBuf },
+}
+
+impl CalSource {
+    pub fn load(&self) -> Result<DcmData, Box<dyn Error>> {
+        match self {
+            CalSource::Dcm(path) => {
+                let path = path.clone();
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| DcmData::new(&path)))
+                    .map_err(|_| format!("Failed to load DCM file: {}", path.display()).into())
+            }
+            CalSource::A2lHex { a2l, hex } => gen_dcm_data(a2l, hex),
+        }
+    }
+
+    pub fn label(&self) -> String {
+        match self {
+            CalSource::Dcm(path) => path.display().to_string(),
+            CalSource::A2lHex { a2l, hex } =>
+                format!("{} + {}", a2l.display(), hex.display()),
+        }
+    }
+}
+
+/// Validate CLI flags and build ordered CalSource pair.
+/// Returns Err(String) with a user-facing message on validation failure.
+pub fn validate_and_build_sources(
+    dcm: &[PathBuf],
+    a2l: &[PathBuf],
+    hex: &[PathBuf],
+) -> Result<(CalSource, CalSource), String> {
+    let total = dcm.len() + a2l.len();
+    if total != 2 {
+        return Err(format!(
+            "Expected exactly 2 sources (--dcm and/or --a2l+--hex), got {}",
+            total
+        ));
+    }
+    if a2l.len() != hex.len() {
+        return Err(format!(
+            "Mismatched --a2l ({} provided) and --hex ({} provided) flags",
+            a2l.len(),
+            hex.len()
+        ));
+    }
+
+    let mut sources = Vec::new();
+    for path in dcm {
+        sources.push(CalSource::Dcm(path.clone()));
+    }
+    for (a, h) in a2l.iter().zip(hex.iter()) {
+        sources.push(CalSource::A2lHex { a2l: a.clone(), hex: h.clone() });
+    }
+    let right = sources.pop().unwrap();
+    let left = sources.pop().unwrap();
+    Ok((left, right))
+}
 
 /// Metadata about the diff operation
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DiffMetadata {
-    pub original_file: String,
-    pub modified_file: String,
+    #[serde(rename = "original_file")]
+    pub left_label: String,
+    #[serde(rename = "modified_file")]
+    pub right_label: String,
     pub timestamp: String,
 }
 
 impl DiffMetadata {
-    pub fn new(original: &Path, modified: &Path) -> Self {
+    pub fn new(left_label: &str, right_label: &str) -> Self {
         Self {
-            original_file: original.display().to_string(),
-            modified_file: modified.display().to_string(),
+            left_label: left_label.to_string(),
+            right_label: right_label.to_string(),
             timestamp: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .map(|d| d.as_secs().to_string())
@@ -242,8 +307,13 @@ fn dcm_diff_with_details(left: &DcmData, right: &DcmData, _detailed: bool) -> Ve
 }
 
 /// Compute diff with metadata including file paths
-pub fn dcm_diff_with_metadata(left: &DcmData, right: &DcmData, original_path: &Path, modified_path: &Path) -> DcmDiffResult {
-    let metadata = DiffMetadata::new(original_path, modified_path);
+pub fn dcm_diff_with_metadata(
+    left: &DcmData,
+    right: &DcmData,
+    left_src: &CalSource,
+    right_src: &CalSource,
+) -> DcmDiffResult {
+    let metadata = DiffMetadata::new(&left_src.label(), &right_src.label());
     let differences = dcm_diff_with_details(left, right, true);
     DcmDiffResult::new(metadata, differences)
 }
