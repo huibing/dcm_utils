@@ -143,6 +143,7 @@ CLI args → CalSource::load() → DcmData ─┘
 Added in `src/diff.rs`:
 
 ```rust
+#[derive(Debug, Clone)]
 pub enum CalSource {
     Dcm(PathBuf),
     A2lHex { a2l: PathBuf, hex: PathBuf },
@@ -151,7 +152,8 @@ pub enum CalSource {
 
 Methods:
 
-- `load(&self) -> Result<DcmData, Box<dyn Error>>` — dispatches to `DcmData::new()` (wrapping the panic-prone call in `Ok()`) or `gen::gen_dcm_data()`. Note: `DcmData::new()` currently panics on I/O errors; the `Result` return type covers the A2L+HEX path and leaves room for a future fallible `DcmData::try_new()` without changing the public API.
+- `load(&self) -> Result<DcmData, Box<dyn Error>>` — for DCM sources, wraps `DcmData::new()` in a `catch_unwind` to convert panics (missing file, corrupt content) into `Err`, giving users a clean error message instead of a panic backtrace. For A2L+HEX sources, delegates to `gen::gen_dcm_data()`.
+- `label(&self) -> String` — uses `path.display().to_string()` consistently for both variants. A2L+HEX format: `"<a2l_path> + <hex_path>"` (space-padded `+` separator, full paths).
 - `label(&self) -> String` — uses `path.display().to_string()` consistently for both variants. A2L+HEX format: `"<a2l_path> + <hex_path>"` (space-padded `+` separator, full paths).
 
 ### Updated Function Signature
@@ -191,11 +193,11 @@ This ensures existing JSON consumers see the same `"original_file"` / `"modified
 | `src/main.rs` | Replace positional `Diff` variant with `Vec`-based flag args. Update doc comments to show new flag-based examples. Call `validate_and_build_sources()` in match arm, call `load()` on each source, pass to `dcm_diff_with_metadata`. Update field access to `left_label`/`right_label`. |
 | `src/lib.rs` | Add `CalSource`, `validate_and_build_sources` to the `pub use diff::{...}` re-export line. |
 | `tests/*.rs` (3 files) | Update callers of `dcm_diff_with_metadata` in `test_diff_enhanced_output.rs`, `test_diff_2d_map_comprehensive.rs`, `test_diff_map_refactor.rs` to wrap paths in `CalSource::Dcm(...)`. The other 2 test files call only `dcm_diff()` (unchanged). |
-| `tests/*.rs` (all 5) | Update any assertions referencing the old `original_file`/`modified_file` field names (renamed to `left_label`/`right_label`). |
+| `tests/*.rs` (all files) | Scan and update any assertions referencing the old `original_file`/`modified_file` Rust field names (renamed to `left_label`/`right_label`). JSON key assertions are unchanged due to `#[serde(rename)]`. |
 
 ## Error Handling
 
-- **DCM file missing/corrupt**: `DcmData::new()` panics (existing behavior; covered by the fact that cal files should be valid at this point in the pipeline)
+- **DCM file missing/corrupt**: `CalSource::load()` wraps `DcmData::new()` in `catch_unwind` to convert panics into `Err`, producing a clean error message like the A2L+HEX path
 - **A2L/HEX file parse failure**: `gen_dcm_data` returns `Err` → hard error, diff exits
 - **Individual characteristic extraction failure**: handled internally by `gen_dcm_data` via stderr summary; diff proceeds with successfully extracted blocks
 - **Invalid source count** (any count not equal to 2): manual validation in the match arm prints error and exits before any I/O
@@ -221,8 +223,8 @@ This ensures existing JSON consumers see the same `"original_file"` / `"modified
 
 - Reuses existing `test-dcms/simple_test.a2l` and `test-dcms/simple_test.hex` for A2L+HEX sources
 - Reuses existing `test-dcms/` DCM files for DCM sources
-- No new test fixture files required for the core tests
-- Edge case with broken characteristic: create `test-dcms/broken_char.a2l` with a CHARACTERISTIC referencing a nonexistent RECORD_LAYOUT, paired with a minimal valid HEX; verify diff still completes
+- No new test fixture files required
+- Extraction-failure resilience is already tested by existing `gen.rs` unit tests (verbal value skipping, etc.) and exercised at runtime by `gen_dcm_data`'s stderr summary
 
 ### Updating Existing Tests
 
