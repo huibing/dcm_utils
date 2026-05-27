@@ -395,3 +395,100 @@ fn generate_change_description(name: &str, left: &Block, right: &Block) -> Strin
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_cal_source_label_dcm() {
+        let src = CalSource::Dcm(PathBuf::from("test-dcms/example.DCM"));
+        let label = src.label();
+        assert!(label.contains("example.DCM"), "Label should contain the file name, got: {}", label);
+    }
+
+    #[test]
+    fn test_cal_source_label_a2l_hex() {
+        let src = CalSource::A2lHex {
+            a2l: PathBuf::from("test-dcms/cal.a2l"),
+            hex: PathBuf::from("test-dcms/flash.hex"),
+        };
+        let label = src.label();
+        assert!(label.contains("cal.a2l"), "Label should contain a2l path");
+        assert!(label.contains("flash.hex"), "Label should contain hex path");
+        assert!(label.contains(" + "), "Label should contain ' + ' separator");
+    }
+
+    #[test]
+    fn test_validate_and_build_sources_two_dcm() {
+        let dcm = vec![PathBuf::from("a.DCM"), PathBuf::from("b.DCM")];
+        let (left, right) = validate_and_build_sources(&dcm, &[], &[]).unwrap();
+        assert!(matches!(left, CalSource::Dcm(_)));
+        assert!(matches!(right, CalSource::Dcm(_)));
+    }
+
+    #[test]
+    fn test_validate_and_build_sources_mixed() {
+        let dcm = vec![PathBuf::from("ref.DCM")];
+        let a2l = vec![PathBuf::from("cal.a2l")];
+        let hex = vec![PathBuf::from("flash.hex")];
+        let (left, right) = validate_and_build_sources(&dcm, &a2l, &hex).unwrap();
+        // DCM entries come first
+        assert!(matches!(left, CalSource::Dcm(_)));
+        assert!(matches!(right, CalSource::A2lHex { .. }));
+    }
+
+    #[test]
+    fn test_validate_and_build_sources_two_a2l_hex() {
+        let a2l = vec![PathBuf::from("v1.a2l"), PathBuf::from("v2.a2l")];
+        let hex = vec![PathBuf::from("v1.hex"), PathBuf::from("v2.hex")];
+        let (left, right) = validate_and_build_sources(&[], &a2l, &hex).unwrap();
+        assert!(matches!(left, CalSource::A2lHex { .. }));
+        assert!(matches!(right, CalSource::A2lHex { .. }));
+    }
+
+    #[test]
+    fn test_validate_rejects_zero_sources() {
+        let err = validate_and_build_sources(&[], &[], &[]).unwrap_err();
+        assert!(err.contains("Expected exactly 2 sources"), "Got: {}", err);
+    }
+
+    #[test]
+    fn test_validate_rejects_one_source() {
+        let dcm = vec![PathBuf::from("a.DCM")];
+        let err = validate_and_build_sources(&dcm, &[], &[]).unwrap_err();
+        assert!(err.contains("Expected exactly 2 sources"));
+    }
+
+    #[test]
+    fn test_validate_rejects_three_sources() {
+        let dcm = vec![
+            PathBuf::from("a.DCM"),
+            PathBuf::from("b.DCM"),
+            PathBuf::from("c.DCM"),
+        ];
+        let err = validate_and_build_sources(&dcm, &[], &[]).unwrap_err();
+        assert!(err.contains("Expected exactly 2 sources"));
+    }
+
+    #[test]
+    fn test_validate_rejects_four_sources() {
+        let dcm = vec![
+            PathBuf::from("a.DCM"),
+            PathBuf::from("b.DCM"),
+            PathBuf::from("c.DCM"),
+            PathBuf::from("d.DCM"),
+        ];
+        let err = validate_and_build_sources(&dcm, &[], &[]).unwrap_err();
+        assert!(err.contains("Expected exactly 2 sources"));
+    }
+
+    #[test]
+    fn test_validate_rejects_mismatched_a2l_hex() {
+        let a2l = vec![PathBuf::from("cal.a2l"), PathBuf::from("v2.a2l")];
+        let hex = vec![PathBuf::from("flash.hex")]; // only 1 hex for 2 a2ls
+        let err = validate_and_build_sources(&[], &a2l, &hex).unwrap_err();
+        assert!(err.contains("Mismatched"));
+    }
+}
