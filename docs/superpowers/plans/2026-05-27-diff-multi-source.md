@@ -529,7 +529,8 @@ fn test_diff_a2l_vs_dcm_roundtrip() {
     let gen_data = a2l_hex_src.load().expect("gen from A2L+HEX");
 
     // Write generated data to temp file, read it back as DCM
-    let tmp = std::env::temp_dir().join("test_diff_roundtrip.DCM");
+    let tmp = std::env::temp_dir()
+        .join(format!("test_diff_roundtrip_{}.DCM", std::process::id()));
     gen_data.render_to_file(&tmp);
 
     let dcm_src = CalSource::Dcm(tmp.clone());
@@ -563,6 +564,44 @@ fn test_diff_a2l_vs_a2l_same() {
 }
 
 #[test]
+fn test_diff_a2l_vs_a2l_different() {
+    // Gen from simple_test.a2l+hex produces known blocks; diffing against a
+    // different DCM file (test1.DCM) should detect differences.
+    let a2l_src = CalSource::A2lHex {
+        a2l: PathBuf::from("test-dcms/simple_test.a2l"),
+        hex: PathBuf::from("test-dcms/simple_test.hex"),
+    };
+    let dcm_src = CalSource::Dcm(PathBuf::from("test-dcms/test1.DCM"));
+
+    let a2l_data = a2l_src.load().expect("load A2L+HEX");
+    let dcm_data = dcm_src.load().expect("load DCM");
+
+    let result = dcm_diff_with_metadata(&a2l_data, &dcm_data, &a2l_src, &dcm_src);
+
+    // These are different calibration sets — there should be differences
+    assert!(result.summary.total > 0,
+        "A2L+HEX vs different DCM should detect differences");
+}
+
+#[test]
+fn test_diff_a2l_vs_dcm_different() {
+    // Compare A2L+HEX gen result against a known-different DCM file
+    let a2l_src = CalSource::A2lHex {
+        a2l: PathBuf::from("test-dcms/simple_test.a2l"),
+        hex: PathBuf::from("test-dcms/simple_test.hex"),
+    };
+    let dcm_src = CalSource::Dcm(PathBuf::from("test-dcms/test1_modified.DCM"));
+
+    let a2l_data = a2l_src.load().expect("load A2L+HEX");
+    let dcm_data = dcm_src.load().expect("load DCM");
+
+    let result = dcm_diff_with_metadata(&a2l_data, &dcm_data, &a2l_src, &dcm_src);
+
+    assert!(result.summary.total > 0,
+        "A2L+HEX vs modified DCM should detect differences");
+}
+
+#[test]
 fn test_validate_mismatched_counts() {
     // 0 sources
     assert!(validate_and_build_sources(&[], &[], &[]).is_err());
@@ -583,8 +622,8 @@ fn test_validate_mismatched_counts() {
 
 - [ ] **Step 2: Run the new integration tests**
 
-Run: `cargo test -- test_diff_dcm_vs_dcm_flags test_diff_a2l_vs_dcm_roundtrip test_diff_a2l_vs_a2l_same test_validate_mismatched`
-Expected: All 4 tests pass.
+Run: `cargo test -- test_diff_dcm_vs_dcm_flags test_diff_a2l_vs_dcm_roundtrip test_diff_a2l_vs_a2l_same test_diff_a2l_vs_a2l_different test_diff_a2l_vs_dcm_different test_validate_mismatched`
+Expected: All 6 tests pass.
 
 - [ ] **Step 3: Commit**
 
