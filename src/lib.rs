@@ -13,6 +13,7 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 use block::Block;
 use blocks::{FESTWERT, FESTWERTEBLOCK, GRUPPENKENNLINIE, STUETZSTELLENVERTEILUNG, GRUPPENKENNFELD};
+use value::Value;
 use indexmap::IndexMap;
 use log::{warn, info};
 use handlebars::*;
@@ -42,7 +43,7 @@ fn dcm_vector_writer (h: &Helper, _: &Handlebars, _: &Context, _: &mut RenderCon
                     out.write(format!("\"{}\"", j.as_str().unwrap_or("")).as_str())?;      // add double quotes for text values
                 } else {
                     let number = j.as_f64().unwrap_or(0.0);
-                    let number_str = format!("{:.16}", number);
+                    let number_str = format!("{:.17}", number);
                     out.write(number_str.as_str())?;
                 }
                 out.write("   ")?;
@@ -83,6 +84,18 @@ impl DcmData {
         while line.is_some() {
             let mut block = Vec::new();
             if line.as_ref().unwrap().starts_with("FESTWERT ") {    // constant
+                loop {
+                    block.push(line.unwrap());
+                    line = lines.next();
+                    if line.is_none() || line.as_ref().unwrap().starts_with("END") {
+                        let constant = block.join("\n").parse::<FESTWERT>().unwrap();
+                        blocks.entry(constant.name.clone())
+                        .and_modify( |_| warn!("Duplicate constant name: {}", constant.name))
+                        .or_insert(Block::Constant(constant));
+                        break;
+                    }
+                }
+            } else if line.as_ref().unwrap().starts_with("TEXTSTRING ") {    // text string constant
                 loop {
                     block.push(line.unwrap());
                     line = lines.next();
@@ -256,6 +269,7 @@ pub fn write_dcm_data(data: &DcmData, file: &Path) {
 
     /* data  */
     let mut constants = Vec::new();
+    let mut textstrings = Vec::new();
     let mut constant_blocks = Vec::new();
     let mut table_blocks = Vec::new();
     let mut axis = Vec::new();
@@ -263,12 +277,21 @@ pub fn write_dcm_data(data: &DcmData, file: &Path) {
     for (key, blk) in &data.blocks {
         match blk {
             Block::Constant(c) => {
-                constants.push( json!({
-                    "name": key,
-                    "value": c.value,
-                    "desc": blk.get_desc().unwrap_or("".to_string()),
-                    "unit": blk.get_w_unit().unwrap_or("unitless".to_string()),
-                }))
+                if let Value::TEXT(_) = &c.value {
+                    textstrings.push( json!({
+                        "name": key,
+                        "value": c.value,
+                        "desc": blk.get_desc().unwrap_or("".to_string()),
+                        "unit": blk.get_w_unit().unwrap_or("unitless".to_string()),
+                    }))
+                } else {
+                    constants.push( json!({
+                        "name": key,
+                        "value": c.value,
+                        "desc": blk.get_desc().unwrap_or("".to_string()),
+                        "unit": blk.get_w_unit().unwrap_or("unitless".to_string()),
+                    }))
+                }
             },
             Block::ConstantBlock(c) => {
                 constant_blocks.push(json!( {
@@ -330,6 +353,7 @@ pub fn write_dcm_data(data: &DcmData, file: &Path) {
         "creator": username,
         "timestamp": time,
         "constant": constants,
+        "textstring": textstrings,
         "constantblock": constant_blocks,
         "tables": table_blocks,
         "axis": axis,

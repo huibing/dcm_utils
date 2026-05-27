@@ -11,9 +11,18 @@ KONSERVIERUNG_FORMAT 2.0
 * no memory layouts specified
 
 {{#each constant}}
-FESTWERT {{name}} 
-   LANGNAME "{{desc}}" 
+FESTWERT {{name}}
+   LANGNAME "{{desc}}"
    EINHEIT_W "{{unit}}"
+{{dcm_vector "WERT" value}}
+END{{#if @last}}{{else}}
+
+{{/if}}
+{{/each}}
+
+{{#each textstring}}
+TEXTSTRING {{name}}
+   LANGNAME "{{desc}}"
 {{dcm_vector "WERT" value}}
 END{{#if @last}}{{else}}
 
