@@ -7,6 +7,8 @@ use a2ldeser::extractor::{ExtractedObject, Extractor, PhysicalValue};
 use a2ldeser::hex_reader::HexMemory;
 use a2lfile::A2lObjectName;
 
+use log::warn;
+
 use crate::DcmData;
 use crate::block::Block;
 use crate::blocks::{FESTWERT, FESTWERTEBLOCK, GRUPPENKENNLINIE, GRUPPENKENNFELD, STUETZSTELLENVERTEILUNG};
@@ -118,7 +120,7 @@ fn extracted_to_dcm_blocks(
             ));
             blocks.insert(axis_name, block);
         } else {
-            eprintln!("WARN: Derived axis '{}' collides with existing AXIS_PTS, skipped", axis_name);
+            warn!("Derived axis '{}' collides with existing AXIS_PTS, skipped", axis_name);
         }
     }
     for m in &maps {
@@ -135,7 +137,7 @@ fn extracted_to_dcm_blocks(
                 ));
                 blocks.insert(axis_name.clone(), block);
             } else {
-                eprintln!("WARN: Derived axis '{}' collides with existing AXIS_PTS, skipped", axis_name);
+                warn!("Derived axis '{}' collides with existing AXIS_PTS, skipped", axis_name);
             }
         }
     }
@@ -176,6 +178,7 @@ fn extracted_valblk_to_block(vb: &a2ldeser::extractor::ExtractedValBlk, langname
     let has_verbal = vb.values.iter().any(|pv| matches!(pv, PhysicalValue::Verbal(_)));
 
     if has_verbal {
+        warn!("ValBlk '{}' contains mixed numeric/verbal values, converting entire block to TEXT", vb.name);
         let strings: Vec<String> = vb.values.iter().map(|pv| match pv {
             PhysicalValue::Numeric(n) => format!("{}", n),
             PhysicalValue::Verbal(s) => s.clone(),
@@ -201,7 +204,7 @@ fn extracted_curve_to_block(c: &a2ldeser::extractor::ExtractedCurve, langname: &
 
     let has_verbal = c.values.iter().any(|pv| matches!(pv, PhysicalValue::Verbal(_)));
     if has_verbal {
-        eprintln!("WARN: Skipping CURVE '{}' — contains verbal values, not representable in DCM", c.name);
+        warn!("Skipping CURVE '{}' — contains verbal values, not representable in DCM", c.name);
         return None;
     }
 
@@ -232,7 +235,7 @@ fn extracted_map_to_block(m: &a2ldeser::extractor::ExtractedMap, langname: &str)
         row.iter().any(|pv| matches!(pv, PhysicalValue::Verbal(_)))
     });
     if has_verbal {
-        eprintln!("WARN: Skipping MAP '{}' — contains verbal values, not representable in DCM", m.name);
+        warn!("Skipping MAP '{}' — contains verbal values, not representable in DCM", m.name);
         return None;
     }
 
