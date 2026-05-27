@@ -1,5 +1,5 @@
 use std::path::Path;
-use dcm_utils::{DcmData, diff::{dcm_diff_with_metadata, DcmDiffResult, DcmDiff}};
+use dcm_utils::{DcmData, diff::{dcm_diff_with_metadata, DcmDiffResult, DcmDiff, CalSource}};
 
 /// Test that diff result contains file metadata information
 #[test]
@@ -10,11 +10,11 @@ fn test_diff_contains_file_metadata() {
     let original = DcmData::new(original_path);
     let modified = DcmData::new(modified_path);
 
-    let result = dcm_diff_with_metadata(&original, &modified, original_path, modified_path);
+    let result = dcm_diff_with_metadata(&original, &modified, &CalSource::Dcm(original_path.to_path_buf()), &CalSource::Dcm(modified_path.to_path_buf()));
 
     // Verify metadata contains file paths
-    assert_eq!(result.metadata.original_file, "test-dcms/test1.DCM", "Should contain original file path");
-    assert_eq!(result.metadata.modified_file, "test-dcms/test1_modified.DCM", "Should contain modified file path");
+    assert_eq!(result.metadata.left_label, "test-dcms/test1.DCM", "Should contain original file path");
+    assert_eq!(result.metadata.right_label, "test-dcms/test1_modified.DCM", "Should contain modified file path");
 
     // Verify metadata contains timestamp
     assert!(!result.metadata.timestamp.is_empty(), "Should contain timestamp");
@@ -29,7 +29,7 @@ fn test_diff_json_contains_file_info() {
     let original = DcmData::new(original_path);
     let modified = DcmData::new(modified_path);
 
-    let result = dcm_diff_with_metadata(&original, &modified, original_path, modified_path);
+    let result = dcm_diff_with_metadata(&original, &modified, &CalSource::Dcm(original_path.to_path_buf()), &CalSource::Dcm(modified_path.to_path_buf()));
 
     let json_output = serde_json::to_string_pretty(&result).expect("Failed to serialize diff result to JSON");
 
@@ -51,7 +51,7 @@ fn test_diff_contains_detailed_change_info() {
     let original = DcmData::new(original_path);
     let modified = DcmData::new(modified_path);
 
-    let result = dcm_diff_with_metadata(&original, &modified, original_path, modified_path);
+    let result = dcm_diff_with_metadata(&original, &modified, &CalSource::Dcm(original_path.to_path_buf()), &CalSource::Dcm(modified_path.to_path_buf()));
 
     // Verify summary counts
     assert!(result.summary.new_count > 0 || result.summary.deleted_count > 0 || result.summary.changed_count > 0,
@@ -71,7 +71,7 @@ fn test_diff_changed_includes_description() {
     let original = DcmData::new(original_path);
     let modified = DcmData::new(modified_path);
 
-    let result = dcm_diff_with_metadata(&original, &modified, original_path, modified_path);
+    let result = dcm_diff_with_metadata(&original, &modified, &CalSource::Dcm(original_path.to_path_buf()), &CalSource::Dcm(modified_path.to_path_buf()));
 
     // Find VAR_0014 change
     let var_0014_diff = result.differences.iter().find(|d| {
@@ -100,7 +100,7 @@ fn test_diff_result_roundtrip() {
     let original = DcmData::new(original_path);
     let modified = DcmData::new(modified_path);
 
-    let result = dcm_diff_with_metadata(&original, &modified, original_path, modified_path);
+    let result = dcm_diff_with_metadata(&original, &modified, &CalSource::Dcm(original_path.to_path_buf()), &CalSource::Dcm(modified_path.to_path_buf()));
 
     // Serialize to JSON
     let json = serde_json::to_string_pretty(&result).expect("Failed to serialize");
@@ -109,8 +109,8 @@ fn test_diff_result_roundtrip() {
     let deserialized: DcmDiffResult = serde_json::from_str(&json).expect("Failed to deserialize");
 
     // Verify fields match
-    assert_eq!(deserialized.metadata.original_file, result.metadata.original_file);
-    assert_eq!(deserialized.metadata.modified_file, result.metadata.modified_file);
+    assert_eq!(deserialized.metadata.left_label, result.metadata.left_label);
+    assert_eq!(deserialized.metadata.right_label, result.metadata.right_label);
     assert_eq!(deserialized.differences.len(), result.differences.len());
     assert_eq!(deserialized.summary.total, result.summary.total);
 }
@@ -124,7 +124,7 @@ fn test_diff_empty_result_for_identical_files() {
     let original = DcmData::new(original_path);
     let modified = DcmData::new(modified_path);
 
-    let result = dcm_diff_with_metadata(&original, &modified, original_path, modified_path);
+    let result = dcm_diff_with_metadata(&original, &modified, &CalSource::Dcm(original_path.to_path_buf()), &CalSource::Dcm(modified_path.to_path_buf()));
 
     // Should have no differences
     assert!(result.differences.is_empty(), "Identical files should have no differences");
@@ -143,7 +143,7 @@ fn test_diff_summary_counts_are_accurate() {
     let original = DcmData::new(original_path);
     let modified = DcmData::new(modified_path);
 
-    let result = dcm_diff_with_metadata(&original, &modified, original_path, modified_path);
+    let result = dcm_diff_with_metadata(&original, &modified, &CalSource::Dcm(original_path.to_path_buf()), &CalSource::Dcm(modified_path.to_path_buf()));
 
     // Count each type manually
     let actual_new = result.differences.iter().filter(|d| matches!(d, DcmDiff::New { .. })).count();

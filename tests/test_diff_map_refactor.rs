@@ -1,5 +1,5 @@
 use std::path::Path;
-use dcm_utils::{DcmData, diff::{dcm_diff_with_metadata, DcmDiffResult, DcmDiff}};
+use dcm_utils::{DcmData, diff::{dcm_diff_with_metadata, DcmDiffResult, DcmDiff, CalSource}};
 
 /// Test that ChangedMap outputs clean, structured JSON without escaped strings
 #[test]
@@ -10,7 +10,7 @@ fn test_changedmap_has_structured_output() {
     let original = DcmData::new(original_path);
     let modified = DcmData::new(modified_path);
 
-    let result = dcm_diff_with_metadata(&original, &modified, original_path, modified_path);
+    let result = dcm_diff_with_metadata(&original, &modified, &CalSource::Dcm(original_path.to_path_buf()), &CalSource::Dcm(modified_path.to_path_buf()));
 
     // Find MAP_TEST_001 change
     let map_diff = result.differences.iter().find_map(|d| {
@@ -61,7 +61,7 @@ fn test_changedmap_json_is_clean() {
     let original = DcmData::new(original_path);
     let modified = DcmData::new(modified_path);
 
-    let result = dcm_diff_with_metadata(&original, &modified, original_path, modified_path);
+    let result = dcm_diff_with_metadata(&original, &modified, &CalSource::Dcm(original_path.to_path_buf()), &CalSource::Dcm(modified_path.to_path_buf()));
 
     let json_output = serde_json::to_string_pretty(&result).expect("Failed to serialize");
 
@@ -88,7 +88,7 @@ fn test_map_change_detail_populated() {
     let original = DcmData::new(original_path);
     let modified = DcmData::new(modified_path);
 
-    let result = dcm_diff_with_metadata(&original, &modified, original_path, modified_path);
+    let result = dcm_diff_with_metadata(&original, &modified, &CalSource::Dcm(original_path.to_path_buf()), &CalSource::Dcm(modified_path.to_path_buf()));
 
     let map_diff = result.differences.iter().find_map(|d| {
         match d {
@@ -128,7 +128,7 @@ fn test_changedmap_roundtrip() {
     let original = DcmData::new(original_path);
     let modified = DcmData::new(modified_path);
 
-    let result = dcm_diff_with_metadata(&original, &modified, original_path, modified_path);
+    let result = dcm_diff_with_metadata(&original, &modified, &CalSource::Dcm(original_path.to_path_buf()), &CalSource::Dcm(modified_path.to_path_buf()));
 
     // Serialize
     let json = serde_json::to_string_pretty(&result).expect("Failed to serialize");
@@ -164,7 +164,7 @@ fn test_2d_array_values_accessible() {
     let original = DcmData::new(original_path);
     let modified = DcmData::new(modified_path);
 
-    let result = dcm_diff_with_metadata(&original, &modified, original_path, modified_path);
+    let result = dcm_diff_with_metadata(&original, &modified, &CalSource::Dcm(original_path.to_path_buf()), &CalSource::Dcm(modified_path.to_path_buf()));
 
     let map_diff = result.differences.iter().find_map(|d| {
         match d {
