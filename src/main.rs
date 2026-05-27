@@ -127,17 +127,17 @@ enum Commands {
     ///
     /// Basic usage:
     ///
-    ///     dcm_utils gen --a2l calibration.a2l --hex flash.hex
+    ///     dcm_utils gen --a2l calibration.a2l -x flash.hex
     ///
     /// Custom output file:
     ///
-    ///     dcm_utils gen --a2l calibration.a2l --hex flash.hex --output all_cali.DCM
+    ///     dcm_utils gen --a2l calibration.a2l -x flash.hex --output all_cali.DCM
     Gen {
         /// Path to the A2L calibration description file
         #[arg(short, long)]
         a2l: PathBuf,
         /// Path to the Intel HEX flash image
-        #[arg(short, long)]
+        #[arg(short = 'x', long)]
         hex: PathBuf,
         /// Output DCM file path
         #[arg(short, long, default_value = "generated.dcm")]
