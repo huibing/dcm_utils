@@ -2,6 +2,7 @@ use dcm_utils::{
     DcmData,
     DcmDiff,
     dcm_diff_with_metadata,
+    validate_and_build_sources,
     merge_dcm_data,
     update_dcm_data,
     gen,
@@ -91,29 +92,38 @@ enum Commands {
         #[arg(short, long, default_value = "filtered.dcm")]
         output: PathBuf,
     },
-    /// Compare two DCM files and show differences
+    /// Compare calibration data from two sources (DCM files or A2L+HEX pairs)
     ///
     /// Generates a detailed comparison showing new, deleted, and changed variables.
     /// Results are printed to console and saved as JSON.
     ///
     /// ## Examples
     ///
-    /// Compare two files with default output:
+    /// Compare two DCM files:
     ///
-    ///     dcm_utils diff original.DCM modified.DCM
+    ///     dcm_utils diff --dcm original.DCM --dcm modified.DCM
     ///
-    /// Specify custom output file:
+    /// Compare A2L+HEX against a DCM reference:
     ///
-    ///     dcm_utils diff base.DCM new_version.DCM -o changes.json
+    ///     dcm_utils diff --dcm ref.DCM --a2l cal.a2l -x flash.hex
+    ///
+    /// Compare two A2L+HEX calibration sets:
+    ///
+    ///     dcm_utils diff --a2l v1.a2l -x v1.hex --a2l v2.a2l -x v2.hex
     ///
     /// Review the JSON output for detailed changes:
     ///
     ///     cat diff.json | jq '.[] | select(.Changed)'
     Diff {
-        /// Original/base DCM file
-        original: PathBuf,
-        /// Modified DCM file to compare against
-        modified: PathBuf,
+        /// DCM file source (repeatable, one per side)
+        #[arg(long)]
+        dcm: Vec<PathBuf>,
+        /// A2L calibration description (paired with --hex on the same side)
+        #[arg(long)]
+        a2l: Vec<PathBuf>,
+        /// Intel HEX flash image (paired with --a2l on the same side)
+        #[arg(short = 'x', long)]
+        hex: Vec<PathBuf>,
         /// Output JSON file for diff results
         #[arg(short, long, default_value = "diff.json")]
         output: PathBuf,
@@ -189,17 +199,30 @@ fn main() {
             }
             dcm.render_to_file(&output);
         },
-        Commands::Diff { original, modified, output } => {
-            let original_dcm = DcmData::new(&original);
-            let modified_dcm = DcmData::new(&modified);
+        Commands::Diff { dcm, a2l, hex, output } => {
+            let (left_src, right_src) = validate_and_build_sources(&dcm, &a2l, &hex)
+                .unwrap_or_else(|e| {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                });
 
-            // Use enhanced diff with metadata
-            let result = dcm_diff_with_metadata(&original_dcm, &modified_dcm, &original, &modified);
+            let left_data = left_src.load()
+                .unwrap_or_else(|e| {
+                    eprintln!("Error loading {}: {}", left_src.label(), e);
+                    std::process::exit(1);
+                });
+            let right_data = right_src.load()
+                .unwrap_or_else(|e| {
+                    eprintln!("Error loading {}: {}", right_src.label(), e);
+                    std::process::exit(1);
+                });
+
+            let result = dcm_diff_with_metadata(&left_data, &right_data, &left_src, &right_src);
 
             // Print summary
-            println!("{}", "=== DCM Diff Results ===".bold());
-            println!("Original: {}", result.metadata.original_file.cyan());
-            println!("Modified: {}", result.metadata.modified_file.cyan());
+            println!("{}", "=== Calibration Diff Results ===".bold());
+            println!("Left:  {}", result.metadata.left_label.cyan());
+            println!("Right: {}", result.metadata.right_label.cyan());
             println!("Timestamp: {}\n", result.metadata.timestamp.dimmed());
 
             println!("New blocks: {}", result.summary.new_count.to_string().green());
@@ -233,7 +256,7 @@ fn main() {
                 println!();
             }
 
-            // Write diff result to JSON file (includes metadata and summary)
+            // Write diff result to JSON file
             let json = serde_json::to_string_pretty(&result).unwrap();
             std::fs::write(&output, json).expect("Failed to write diff output");
             println!("Diff details written to: {}", output.display().to_string().blue());
