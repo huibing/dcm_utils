@@ -154,7 +154,6 @@ Methods:
 
 - `load(&self) -> Result<DcmData, Box<dyn Error>>` — for DCM sources, wraps `DcmData::new()` in a `catch_unwind` to convert panics (missing file, corrupt content) into `Err`, giving users a clean error message instead of a panic backtrace. For A2L+HEX sources, delegates to `gen::gen_dcm_data()`.
 - `label(&self) -> String` — uses `path.display().to_string()` consistently for both variants. A2L+HEX format: `"<a2l_path> + <hex_path>"` (space-padded `+` separator, full paths).
-- `label(&self) -> String` — uses `path.display().to_string()` consistently for both variants. A2L+HEX format: `"<a2l_path> + <hex_path>"` (space-padded `+` separator, full paths).
 
 ### Updated Function Signature
 
