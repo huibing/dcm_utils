@@ -5,7 +5,7 @@ pub mod value;
 pub mod diff;
 pub mod gen;
 
-pub use diff::{DcmDiff, DcmDiffResult, DiffMetadata, DiffSummary, MapChangeDetail, MapValues, MapAttr, dcm_diff, dcm_diff_with_metadata};
+pub use diff::{DcmDiff, DcmDiffResult, DiffMetadata, DiffSummary, MapChangeDetail, MapValues, MapAttr, CalSource, dcm_diff, dcm_diff_with_metadata, validate_and_build_sources};
 
 use std::env;
 use std::fs::File;
