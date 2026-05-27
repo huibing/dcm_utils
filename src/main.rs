@@ -4,6 +4,7 @@ use dcm_utils::{
     dcm_diff_with_metadata,
     merge_dcm_data,
     update_dcm_data,
+    gen,
 };
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -117,6 +118,31 @@ enum Commands {
         #[arg(short, long, default_value = "diff.json")]
         output: PathBuf,
     },
+    /// Generate DCM file from A2L and HEX calibration files
+    ///
+    /// Extracts all calibration characteristics from an A2L file and HEX flash image,
+    /// converting them to DCM format. Failed extractions are skipped with warnings.
+    ///
+    /// ## Examples
+    ///
+    /// Basic usage:
+    ///
+    ///     dcm_utils gen --a2l calibration.a2l --hex flash.hex
+    ///
+    /// Custom output file:
+    ///
+    ///     dcm_utils gen --a2l calibration.a2l --hex flash.hex --output all_cali.DCM
+    Gen {
+        /// Path to the A2L calibration description file
+        #[arg(short, long)]
+        a2l: PathBuf,
+        /// Path to the Intel HEX flash image
+        #[arg(short, long)]
+        hex: PathBuf,
+        /// Output DCM file path
+        #[arg(short, long, default_value = "generated.dcm")]
+        output: PathBuf,
+    },
 }
 
 
@@ -211,6 +237,12 @@ fn main() {
             let json = serde_json::to_string_pretty(&result).unwrap();
             std::fs::write(&output, json).expect("Failed to write diff output");
             println!("Diff details written to: {}", output.display().to_string().blue());
+        },
+        Commands::Gen { a2l, hex, output } => {
+            let dcm_data = gen::gen_dcm_data(&a2l, &hex)
+                .expect("Failed to generate DCM data");
+            dcm_data.render_to_file(&output);
+            println!("DCM file written to: {}", output.display().to_string().blue());
         },
     }
 }
