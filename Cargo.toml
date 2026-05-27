@@ -17,6 +17,8 @@ clap = {version = "4.5.38", features = ["derive"]}
 regex = "1.11.1"
 colored = "3.0.0"
 ihex = "3.0"
+a2ldeser = { git = "https://github.com/huibing/a2ldeser" }
+a2lfile = "3.3"
 
 
 [dev-dependencies]

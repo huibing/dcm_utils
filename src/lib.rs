@@ -3,6 +3,7 @@ pub mod block;
 pub mod blocks;
 pub mod value;
 pub mod diff;
+pub mod gen;
 
 pub use diff::{DcmDiff, DcmDiffResult, DiffMetadata, DiffSummary, MapChangeDetail, MapValues, MapAttr, dcm_diff, dcm_diff_with_metadata};
 
