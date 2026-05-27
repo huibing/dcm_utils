@@ -40,17 +40,82 @@ Diff {
 
 All three fields are `Vec<PathBuf>` — clap's derive API collects repeated flags into vectors.
 
-### CLI Validation Logic (manual, in the match arm)
+### CLI Validation Logic
 
-Clap cannot express cross-flag constraints natively, so validation happens in the match arm before any I/O:
+Clap cannot express cross-flag constraints natively, so a `validate_and_build_sources` function in `diff.rs` handles validation before any I/O:
 
-1. **Count check**: `dcm.len() + a2l.len()` must equal exactly 2. Fewer or more sources → reject with a clear error message.
-2. **Pairing check**: `a2l.len() == hex.len()`. Extra A2Ls without HEXs (or vice versa) → reject.
-3. **Source construction** (canonical order):
-   - Each `--dcm` becomes `CalSource::Dcm(path)`
-   - Each `--a2l`/`--hex` pair (zipped by index) becomes `CalSource::A2lHex { a2l, hex }`
-   - Sources are ordered canonically: `--dcm` entries first (in order), then `--a2l`/`--hex` pairs (in order). Note: clap `Vec` does not preserve interleaving across different flags, so `--a2l a.a2l -x a.hex --dcm b.DCM` still produces DCM first. Examples above use the canonical order.
-4. **First source = left** (original), **second source = right** (modified)
+```rust
+/// Validate CLI flags and build ordered CalSource pair.
+/// Returns Err(String) with a user-facing message on validation failure.
+pub fn validate_and_build_sources(
+    dcm: &[PathBuf],
+    a2l: &[PathBuf],
+    hex: &[PathBuf],
+) -> Result<(CalSource, CalSource), String> {
+    let total = dcm.len() + a2l.len();
+    if total != 2 {
+        return Err(format!(
+            "Expected exactly 2 sources (--dcm and/or --a2l+--hex), got {}",
+            total
+        ));
+    }
+    if a2l.len() != hex.len() {
+        return Err(format!(
+            "Mismatched --a2l ({} provided) and --hex ({} provided) flags",
+            a2l.len(),
+            hex.len()
+        ));
+    }
+
+    let mut sources = Vec::new();
+    for path in dcm {
+        sources.push(CalSource::Dcm(path.clone()));
+    }
+    for (a, h) in a2l.iter().zip(hex.iter()) {
+        sources.push(CalSource::A2lHex { a2l: a.clone(), hex: h.clone() });
+    }
+    // sources is ordered canonically: DCM entries first, then A2L+HEX pairs
+    let right = sources.pop().unwrap();
+    let left = sources.pop().unwrap();
+    Ok((left, right))
+}
+```
+
+### Match Arm (main.rs)
+
+```rust
+Commands::Diff { dcm, a2l, hex, output } => {
+    let (left_src, right_src) = validate_and_build_sources(&dcm, &a2l, &hex)
+        .unwrap_or_else(|e| {
+            eprintln!("Error: {}", e);
+            std::process::exit(1);
+        });
+
+    let left_data = left_src.load()
+        .unwrap_or_else(|e| {
+            eprintln!("Error loading {}: {}", left_src.label(), e);
+            std::process::exit(1);
+        });
+    let right_data = right_src.load()
+        .unwrap_or_else(|e| {
+            eprintln!("Error loading {}: {}", right_src.label(), e);
+            std::process::exit(1);
+        });
+
+    let result = dcm_diff_with_metadata(&left_data, &right_data, &left_src, &right_src);
+
+    // Print summary (uses renamed fields: left_label / right_label)
+    println!("{}", "=== Calibration Diff Results ===".bold());
+    println!("Left:  {}", result.metadata.left_label.cyan());
+    println!("Right: {}", result.metadata.right_label.cyan());
+    // ... rest of summary output unchanged ...
+
+    // Write JSON
+    let json = serde_json::to_string_pretty(&result).unwrap();
+    std::fs::write(&output, json).expect("Failed to write diff output");
+    println!("Diff details written to: {}", output.display().to_string().blue());
+},
+```
 
 ### CLI Flags
 
@@ -102,9 +167,19 @@ pub fn dcm_diff_with_metadata(
 ) -> DcmDiffResult
 ```
 
-`DiffMetadata::new()` changes to accept two `&str` labels (extracted via `CalSource::label()`) instead of `&Path`, and the fields are renamed from `original_file`/`modified_file` to `left_label`/`right_label` to accurately describe composite A2L+HEX sources. This avoids coupling `DiffMetadata` to `CalSource`.
+`DiffMetadata::new()` changes to accept two `&str` labels (extracted via `CalSource::label()`) instead of `&Path`, and the Rust fields are renamed from `original_file`/`modified_file` to `left_label`/`right_label`. The serde keys are preserved for backward compatibility via `#[serde(rename)]`:
 
-The old signature is **removed** — the 3 existing integration tests under `tests/` that call `dcm_diff_with_metadata` will be updated to construct `CalSource::Dcm(path)` wrappers. `CalSource` is re-exported from `lib.rs` (`pub use diff::CalSource;`).
+```rust
+pub struct DiffMetadata {
+    #[serde(rename = "original_file")]
+    pub left_label: String,
+    #[serde(rename = "modified_file")]
+    pub right_label: String,
+    pub timestamp: String,
+}
+```
+
+This ensures existing JSON consumers see the same `"original_file"` / `"modified_file"` keys.
 
 `diff.rs` gains `use crate::gen::gen_dcm_data;` for the A2L+HEX load path.
 
@@ -112,10 +187,11 @@ The old signature is **removed** — the 3 existing integration tests under `tes
 
 | File | Change |
 |---|---|
-| `src/diff.rs` | Add `CalSource` enum with `load()`/`label()`. Change `DiffMetadata::new()` to take two `&str`. Update `dcm_diff_with_metadata` signature. Add `use crate::gen::gen_dcm_data`. |
-| `src/main.rs` | Replace positional `Diff` variant with `Vec`-based flag args. Update doc comments to show new flag-based examples. Add manual validation (count + pairing) in the match arm before any I/O. Build two `CalSource` values, call `load()` on each, pass to `dcm_diff_with_metadata`. |
-| `src/lib.rs` | Add `CalSource` to the `pub use diff::{...}` re-export line. |
-| `tests/*.rs` (5 files) | Update all callers of `dcm_diff_with_metadata` to wrap paths in `CalSource::Dcm(...)`. |
+| `src/diff.rs` | Add `CalSource` enum with `load()`/`label()`. Add `validate_and_build_sources()`. Change `DiffMetadata::new()` to take two `&str`, rename fields with `#[serde(rename)]`. Update `dcm_diff_with_metadata` signature. Add `use crate::gen::gen_dcm_data`. |
+| `src/main.rs` | Replace positional `Diff` variant with `Vec`-based flag args. Update doc comments to show new flag-based examples. Call `validate_and_build_sources()` in match arm, call `load()` on each source, pass to `dcm_diff_with_metadata`. Update field access to `left_label`/`right_label`. |
+| `src/lib.rs` | Add `CalSource`, `validate_and_build_sources` to the `pub use diff::{...}` re-export line. |
+| `tests/*.rs` (3 files) | Update callers of `dcm_diff_with_metadata` in `test_diff_enhanced_output.rs`, `test_diff_2d_map_comprehensive.rs`, `test_diff_map_refactor.rs` to wrap paths in `CalSource::Dcm(...)`. The other 2 test files call only `dcm_diff()` (unchanged). |
+| `tests/*.rs` (all 5) | Update any assertions referencing the old `original_file`/`modified_file` field names (renamed to `left_label`/`right_label`). |
 
 ## Error Handling
 
@@ -150,4 +226,13 @@ The old signature is **removed** — the 3 existing integration tests under `tes
 
 ### Updating Existing Tests
 
-All 5 existing integration tests that call `dcm_diff_with_metadata(..., &original, &modified)` will be updated to pass `&CalSource::Dcm(original.to_path_buf())` etc. This is a mechanical change.
+The following files call `dcm_diff_with_metadata` and need mechanical updates:
+
+| File | Changes |
+|---|---|
+| `tests/test_diff_enhanced_output.rs` | Wrap path args in `CalSource::Dcm(...)`. Update field access: `.original_file` → `.left_label`, `.modified_file` → `.right_label`. JSON string assertions on `"original_file"`/`"modified_file"` keys unchanged (serde rename preserves them). |
+| `tests/test_diff_2d_map_comprehensive.rs` | Wrap path args in `CalSource::Dcm(...)`. Update field access: `.original_file` → `.left_label`, `.modified_file` → `.right_label`. |
+| `tests/test_diff_map_refactor.rs` | Wrap path args in `CalSource::Dcm(...)`. |
+| `src/main.rs` | `result.metadata.original_file` → `result.metadata.left_label`, `result.metadata.modified_file` → `result.metadata.right_label`. |
+
+The 2 test files that call only `dcm_diff()` (`test_diff_json_output.rs`, `test_diff_table_changes.rs`) are unchanged.
