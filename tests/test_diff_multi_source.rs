@@ -14,7 +14,7 @@ fn test_diff_dcm_vs_dcm() {
     let left_data = left.load().expect("should load test1.DCM");
     let right_data = right.load().expect("should load test1_modified.DCM");
 
-    let result = dcm_diff_with_metadata(&left_data, &right_data, &left, &right);
+    let result = dcm_diff_with_metadata(&left_data, &right_data, &left, &right, false);
 
     assert!(
         result.summary.total > 0,
@@ -42,7 +42,7 @@ fn test_diff_a2l_vs_a2l_same() {
         hex: hex.to_path_buf(),
     };
 
-    let result = dcm_diff_with_metadata(&left_data, &right_data, &left_src, &right_src);
+    let result = dcm_diff_with_metadata(&left_data, &right_data, &left_src, &right_src, false);
 
     assert_eq!(
         result.summary.total, 0,
@@ -73,7 +73,7 @@ fn test_diff_a2l_vs_a2l_different() {
         hex: hex.to_path_buf(),
     };
 
-    let result = dcm_diff_with_metadata(&left_data, &right_data, &left_src, &right_src);
+    let result = dcm_diff_with_metadata(&left_data, &right_data, &left_src, &right_src, false);
 
     assert!(
         result.summary.total > 0,
@@ -101,7 +101,7 @@ fn test_diff_a2l_vs_dcm_roundtrip() {
     };
     let right_src = CalSource::Dcm(PathBuf::from(&temp_path));
 
-    let result = dcm_diff_with_metadata(&left_data, &right_data, &left_src, &right_src);
+    let result = dcm_diff_with_metadata(&left_data, &right_data, &left_src, &right_src, false);
 
     // Clean up temp file
     let _ = std::fs::remove_file(&temp_path);
@@ -127,7 +127,7 @@ fn test_diff_a2l_vs_dcm_different() {
     };
     let right_src = CalSource::Dcm(PathBuf::from("test-dcms/test1.DCM"));
 
-    let result = dcm_diff_with_metadata(&left_data, &right_data, &left_src, &right_src);
+    let result = dcm_diff_with_metadata(&left_data, &right_data, &left_src, &right_src, false);
 
     assert!(
         result.summary.total > 0,

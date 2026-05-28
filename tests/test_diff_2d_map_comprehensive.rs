@@ -28,6 +28,7 @@ fn test_2d_map_diff_detects_all_changes() {
         &modified,
         &CalSource::Dcm(original_path.to_path_buf()),
         &CalSource::Dcm(modified_path.to_path_buf()),
+        false,
     );
 
     // Verify summary
@@ -90,6 +91,7 @@ fn test_2d_map_changedmap_contains_detailed_info() {
         &modified,
         &CalSource::Dcm(original_path.to_path_buf()),
         &CalSource::Dcm(modified_path.to_path_buf()),
+        false,
     );
 
     // Find MAP_TEST_001 change
@@ -157,6 +159,7 @@ fn test_2d_map_diff_json_structure() {
         &modified,
         &CalSource::Dcm(original_path.to_path_buf()),
         &CalSource::Dcm(modified_path.to_path_buf()),
+        false,
     );
     let json_output = serde_json::to_string_pretty(&result).expect("Failed to serialize");
 
@@ -232,6 +235,7 @@ fn test_2d_map_diff_roundtrip() {
         &modified,
         &CalSource::Dcm(original_path.to_path_buf()),
         &CalSource::Dcm(modified_path.to_path_buf()),
+        false,
     );
 
     // Serialize
@@ -277,6 +281,7 @@ fn test_2d_map_terminal_output_descriptions() {
         &modified,
         &CalSource::Dcm(original_path.to_path_buf()),
         &CalSource::Dcm(modified_path.to_path_buf()),
+        false,
     );
 
     // Collect all descriptions
@@ -330,6 +335,7 @@ fn test_2d_map_diff_identical_files() {
         &modified,
         &CalSource::Dcm(original_path.to_path_buf()),
         &CalSource::Dcm(original_path.to_path_buf()),
+        false,
     );
 
     // Should have no differences
@@ -358,6 +364,7 @@ fn test_2d_map_value_changes_only() {
         &modified,
         &CalSource::Dcm(original_path.to_path_buf()),
         &CalSource::Dcm(modified_path.to_path_buf()),
+        false,
     );
 
     // Find MAP_TEST_001

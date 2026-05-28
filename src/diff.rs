@@ -4,7 +4,7 @@ use crate::blocks::GRUPPENKENNFELD;
 use crate::gen::gen_dcm_data;
 use crate::value::Value;
 use crate::DcmData;
-use log::info;
+use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::path::PathBuf;
@@ -256,11 +256,15 @@ pub enum DcmDiff {
 }
 
 pub fn dcm_diff(left: &DcmData, right: &DcmData) -> Vec<DcmDiff> {
-    dcm_diff_with_details(left, right, false)
+    dcm_diff_with_details(left, right, false, false)
 }
 
 /// Internal function to compute diff with optional detailed descriptions
-fn dcm_diff_with_details(left: &DcmData, right: &DcmData, _detailed: bool) -> Vec<DcmDiff> {
+fn dcm_diff_with_details(left: &DcmData, right: &DcmData, _detailed: bool, approx: bool) -> Vec<DcmDiff> {
+    if approx {
+        warn!("Approximate comparison enabled: float differences within relative tolerance 1e-8 (epsilon 1e-12) will be treated as equal");
+    }
+
     let mut diff = Vec::new();
 
     // Find deleted blocks (in left but not in right)
@@ -287,9 +291,14 @@ fn dcm_diff_with_details(left: &DcmData, right: &DcmData, _detailed: bool) -> Ve
             }
             Some(left_block) => {
                 // Block exists in both - check if changed
-                if left_block != right_block {
+                let blocks_equal = if approx {
+                    left_block.approx_eq(right_block)
+                } else {
+                    left_block == right_block
+                };
+                if !blocks_equal {
                     info!("Block {} changed", name);
-                    let description = generate_change_description(name, left_block, right_block);
+                    let description = generate_change_description(name, left_block, right_block, approx);
                     match (left_block, right_block) {
                         (Block::Map(left_map), Block::Map(right_map)) => {
                             let detail = MapChangeDetail {
@@ -325,9 +334,10 @@ pub fn dcm_diff_with_metadata(
     right: &DcmData,
     left_src: &CalSource,
     right_src: &CalSource,
+    approx: bool,
 ) -> DcmDiffResult {
     let metadata = DiffMetadata::new(&left_src.label(), &right_src.label());
-    let differences = dcm_diff_with_details(left, right, true);
+    let differences = dcm_diff_with_details(left, right, true, approx);
     DcmDiffResult::new(metadata, differences)
 }
 
@@ -343,7 +353,7 @@ fn block_type_name(block: &Block) -> &'static str {
 }
 
 /// Generate a description of what changed between two blocks
-fn generate_change_description(name: &str, left: &Block, right: &Block) -> String {
+fn generate_change_description(name: &str, left: &Block, right: &Block, approx: bool) -> String {
     match (left, right) {
         (Block::Table(left_table), Block::Table(right_table)) => {
             let mut changes = Vec::new();
@@ -360,7 +370,8 @@ fn generate_change_description(name: &str, left: &Block, right: &Block) -> Strin
                     left_table.axis_var_name, right_table.axis_var_name
                 ));
             }
-            if left_table.value != right_table.value {
+            let tbl_vals_eq = if approx { left_table.value.approx_eq(&right_table.value) } else { left_table.value == right_table.value };
+            if !tbl_vals_eq {
                 changes.push("values changed".to_string());
             }
             if changes.is_empty() {
@@ -393,7 +404,8 @@ fn generate_change_description(name: &str, left: &Block, right: &Block) -> Strin
                     left_map.y_axis_name, right_map.y_axis_name
                 ));
             }
-            if left_map.value_flat != right_map.value_flat {
+            let map_vals_eq = if approx { left_map.value_flat.approx_eq(&right_map.value_flat) } else { left_map.value_flat == right_map.value_flat };
+            if !map_vals_eq {
                 changes.push("values changed".to_string());
             }
             if changes.is_empty() {
@@ -403,21 +415,24 @@ fn generate_change_description(name: &str, left: &Block, right: &Block) -> Strin
             }
         }
         (Block::ConstantBlock(left_cb), Block::ConstantBlock(right_cb)) => {
-            if left_cb.value != right_cb.value {
+            let cb_vals_eq = if approx { left_cb.value.approx_eq(&right_cb.value) } else { left_cb.value == right_cb.value };
+            if !cb_vals_eq {
                 format!("FESTWERTEBLOCK '{}' values changed", name)
             } else {
                 format!("FESTWERTEBLOCK '{}' changed", name)
             }
         }
         (Block::Constant(left_c), Block::Constant(right_c)) => {
-            if left_c.value != right_c.value {
+            let c_vals_eq = if approx { left_c.value.approx_eq(&right_c.value) } else { left_c.value == right_c.value };
+            if !c_vals_eq {
                 format!("FESTWERT '{}' value changed", name)
             } else {
                 format!("FESTWERT '{}' changed", name)
             }
         }
         (Block::Distribution(left_d), Block::Distribution(right_d)) => {
-            if left_d.value != right_d.value {
+            let dist_vals_eq = if approx { left_d.value.approx_eq(&right_d.value) } else { left_d.value == right_d.value };
+            if !dist_vals_eq {
                 format!("STUETZSTELLENVERTEILUNG '{}' points changed", name)
             } else {
                 format!("STUETZSTELLENVERTEILUNG '{}' changed", name)
@@ -530,5 +545,59 @@ mod tests {
         let hex = vec![PathBuf::from("flash.hex")]; // only 1 hex for 2 a2ls
         let err = validate_and_build_sources(&[], &a2l, &hex).unwrap_err();
         assert!(err.contains("Mismatched"));
+    }
+
+    use crate::block::Block;
+    use crate::blocks::FESTWERT;
+    use crate::DcmData;
+    use indexmap::IndexMap;
+
+    fn make_dcm_with_constant(name: &str, value: f64) -> DcmData {
+        let festwert = FESTWERT::from_f64(name.to_string(), value, "desc".to_string(), "unit".to_string());
+        let mut blocks = IndexMap::new();
+        blocks.insert(name.to_string(), Block::Constant(festwert));
+        DcmData { blocks }
+    }
+
+    #[test]
+    fn test_dcm_diff_approx_suppresses_float_noise() {
+        let left = make_dcm_with_constant("param1", 1.0);
+        let right = make_dcm_with_constant("param1", 1.0 + 1e-9);
+
+        // Exact comparison: should report a change
+        let exact_diff = dcm_diff(&left, &right);
+        assert_eq!(exact_diff.len(), 1);
+
+        // Approximate comparison: should suppress the noise diff
+        let approx_result = dcm_diff_with_metadata(
+            &left,
+            &right,
+            &CalSource::Dcm(PathBuf::from("left.DCM")),
+            &CalSource::Dcm(PathBuf::from("right.DCM")),
+            true,
+        );
+        assert_eq!(approx_result.differences.len(), 0);
+    }
+
+    #[test]
+    fn test_dcm_diff_approx_suppresses_noise_multiple_types() {
+        let left = make_dcm_with_constant("param1", 1.0);
+        let mut right_blocks = IndexMap::new();
+        let c = FESTWERT::from_f64("param1".to_string(), 1.0 + 1e-9, "desc".to_string(), "unit".to_string());
+        right_blocks.insert("param1".to_string(), Block::Constant(c));
+        let right = DcmData { blocks: right_blocks };
+
+        // Exact: 1 change
+        let exact = dcm_diff(&left, &right);
+        assert_eq!(exact.len(), 1);
+
+        // Approx: 0 changes
+        let approx_result = dcm_diff_with_metadata(
+            &left, &right,
+            &CalSource::Dcm(PathBuf::from("left")),
+            &CalSource::Dcm(PathBuf::from("right")),
+            true,
+        );
+        assert_eq!(approx_result.differences.len(), 0);
     }
 }

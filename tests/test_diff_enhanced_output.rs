@@ -18,6 +18,7 @@ fn test_diff_contains_file_metadata() {
         &modified,
         &CalSource::Dcm(original_path.to_path_buf()),
         &CalSource::Dcm(modified_path.to_path_buf()),
+        false,
     );
 
     // Verify metadata contains file paths
@@ -51,6 +52,7 @@ fn test_diff_json_contains_file_info() {
         &modified,
         &CalSource::Dcm(original_path.to_path_buf()),
         &CalSource::Dcm(modified_path.to_path_buf()),
+        false,
     );
 
     let json_output =
@@ -97,6 +99,7 @@ fn test_diff_contains_detailed_change_info() {
         &modified,
         &CalSource::Dcm(original_path.to_path_buf()),
         &CalSource::Dcm(modified_path.to_path_buf()),
+        false,
     );
 
     // Verify summary counts
@@ -130,6 +133,7 @@ fn test_diff_changed_includes_description() {
         &modified,
         &CalSource::Dcm(original_path.to_path_buf()),
         &CalSource::Dcm(modified_path.to_path_buf()),
+        false,
     );
 
     // Find VAR_0014 change
@@ -171,6 +175,7 @@ fn test_diff_result_roundtrip() {
         &modified,
         &CalSource::Dcm(original_path.to_path_buf()),
         &CalSource::Dcm(modified_path.to_path_buf()),
+        false,
     );
 
     // Serialize to JSON
@@ -203,6 +208,7 @@ fn test_diff_empty_result_for_identical_files() {
         &modified,
         &CalSource::Dcm(original_path.to_path_buf()),
         &CalSource::Dcm(modified_path.to_path_buf()),
+        false,
     );
 
     // Should have no differences
@@ -233,6 +239,7 @@ fn test_diff_summary_counts_are_accurate() {
         &modified,
         &CalSource::Dcm(original_path.to_path_buf()),
         &CalSource::Dcm(modified_path.to_path_buf()),
+        false,
     );
 
     // Count each type manually
