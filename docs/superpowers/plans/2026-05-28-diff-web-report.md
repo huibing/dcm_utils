@@ -107,16 +107,17 @@ async fn index(State(state): State<AppState>) -> Result<Response, AppError> {
     reg.register_template_string("report", template)
         .map_err(|e| AppError::Template(e.to_string()))?;
 
-    // Build template context
+    // Build template context — pre-compute 1-based index for each item
     let mut new_items = Vec::new();
     let mut deleted_items = Vec::new();
     let mut changed_items = Vec::new();
 
-    for diff in &state.differences {
+    for (i, diff) in state.differences.iter().enumerate() {
         match diff {
             DcmDiff::New { name, description } => {
                 let desc = description.as_deref().unwrap_or("");
                 new_items.push(serde_json::json!({
+                    "index": i + 1,
                     "name": name,
                     "type": block_type_from_desc(desc),
                     "description": desc,
@@ -125,6 +126,7 @@ async fn index(State(state): State<AppState>) -> Result<Response, AppError> {
             DcmDiff::Deleted { name, description } => {
                 let desc = description.as_deref().unwrap_or("");
                 deleted_items.push(serde_json::json!({
+                    "index": i + 1,
                     "name": name,
                     "type": block_type_from_desc(desc),
                     "description": desc,
@@ -134,6 +136,7 @@ async fn index(State(state): State<AppState>) -> Result<Response, AppError> {
             | DcmDiff::ChangedMap { name, description, .. } => {
                 let desc = description.as_deref().unwrap_or("");
                 changed_items.push(serde_json::json!({
+                    "index": i + 1,
                     "name": name,
                     "type": block_type_from_desc(desc),
                     "change_summary": desc,
@@ -248,38 +251,33 @@ fn build_router(state: AppState) -> Router {
 pub fn start(result: DcmDiffResult) -> Result<(), Box<dyn std::error::Error>> {
     let state = Arc::new(result);
 
-    let listener = TcpListener::bind("127.0.0.1:0")?;
-    listener.set_nonblocking(true)?;
-    let port = listener.local_addr()?.port();
-    // Convert std TcpListener to tokio TcpListener for axum
-    listener.set_nonblocking(false)?;
-    let tokio_listener = tokio::net::TcpListener::from_std(listener)?;
-
-    let router = build_router(state);
-
-    println!("Serving diff report at http://localhost:{}", port);
-    println!("Press Ctrl+C to stop");
-
-    // Open browser (best-effort)
-    if let Err(e) = open::that(format!("http://localhost:{}", port)) {
-        eprintln!(
-            "Could not open browser automatically: {}. Open the URL manually.",
-            e
-        );
-    }
-
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
 
     rt.block_on(async {
-        axum::serve(tokio_listener, router)
-            .with_graceful_shutdown(shutdown_signal())
-            .await
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
-    })?;
+        // Bind on port 0 to get a random free port via tokio (correct nonblocking)
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let port = listener.local_addr()?.port();
+        let router = build_router(state);
 
-    Ok(())
+        println!("Serving diff report at http://localhost:{}", port);
+        println!("Press Ctrl+C to stop");
+
+        // Open browser (best-effort)
+        if let Err(e) = open::that(format!("http://localhost:{}", port)) {
+            eprintln!(
+                "Could not open browser automatically: {}. Open the URL manually.",
+                e
+            );
+        }
+
+        axum::serve(listener, router)
+            .with_graceful_shutdown(shutdown_signal())
+            .await?;
+
+        Ok(())
+    })
 }
 
 async fn shutdown_signal() {
@@ -404,7 +402,7 @@ git commit -m "feat: add serve module with axum router and handlers"
   <table class="diff-table">
     <tr><th class="col-num">#</th><th>Variable Name</th><th>Type</th><th>Description</th></tr>
     {{#each new_items}}
-    <tr><td class="col-num">{{@index_plus_one}}</td><td class="col-name">{{name}}</td><td>{{type}}</td><td>{{description}}</td></tr>
+    <tr><td class="col-num">{{index}}</td><td class="col-name">{{name}}</td><td>{{type}}</td><td>{{description}}</td></tr>
     {{/each}}
   </table>
   {{else}}
@@ -422,7 +420,7 @@ git commit -m "feat: add serve module with axum router and handlers"
   <table class="diff-table">
     <tr><th class="col-num">#</th><th>Variable Name</th><th>Type</th><th>Change Summary</th></tr>
     {{#each changed_items}}
-    <tr><td class="col-num">{{@index_plus_one}}</td><td class="col-name">{{name}}</td><td>{{type}}</td><td>{{change_summary}}</td></tr>
+    <tr><td class="col-num">{{index}}</td><td class="col-name">{{name}}</td><td>{{type}}</td><td>{{change_summary}}</td></tr>
     {{/each}}
   </table>
   {{else}}
@@ -440,7 +438,7 @@ git commit -m "feat: add serve module with axum router and handlers"
   <table class="diff-table">
     <tr><th class="col-num">#</th><th>Variable Name</th><th>Type</th><th>Description</th></tr>
     {{#each deleted_items}}
-    <tr><td class="col-num">{{@index_plus_one}}</td><td class="col-name">{{name}}</td><td>{{type}}</td><td>{{description}}</td></tr>
+    <tr><td class="col-num">{{index}}</td><td class="col-name">{{name}}</td><td>{{type}}</td><td>{{description}}</td></tr>
     {{/each}}
   </table>
   {{else}}
@@ -454,23 +452,9 @@ git commit -m "feat: add serve module with axum router and handlers"
 </html>
 ```
 
-Note: Handlebars `{{@index_plus_one}}` requires registering a helper. Alternatively, use `{{@index}}` and add 1 in the template. Since Handlebars doesn't have math helpers by default, register a simple `inc` helper that returns index + 1. We'll register it in the `index` handler alongside the template.
+Note: template uses `{{index}}` for 1-based row numbers, pre-computed in the handler.
 
-- [ ] **Step 2: Update the index handler in mod.rs to register the `inc` helper**
-
-Add after `reg.register_template_string(...)` in the `index` handler:
-
-```rust
-reg.register_helper("inc", |h: &handlebars::Helper, _: &Handlebars, _: &Context, _: &mut RenderContext, out: &mut dyn Output| -> handlebars::HelperResult {
-    let v = h.param(0).and_then(|p| p.value().as_u64()).unwrap_or(0);
-    out.write(&(v + 1).to_string())?;
-    Ok(())
-});
-```
-
-And change `{{@index_plus_one}}` in the template to `{{inc @index}}`.
-
-- [ ] **Step 3: Run cargo check**
+- [ ] **Step 2: Run cargo check**
 
 ```
 cargo check
@@ -478,7 +462,7 @@ cargo check
 
 Expected: compile OK.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
 git add src/serve/serve.html.hbs src/serve/mod.rs
@@ -555,20 +539,20 @@ git commit -m "feat: wire up --web flag to serve diff results as web page"
 
 ---
 
-### Task 5: Integration tests
+### Task 5: Tests
 
 **Files:**
 - Modify: `src/serve/mod.rs` (add `#[cfg(test)]` module)
 
-- [ ] **Step 1: Add test module to serve/mod.rs**
-
-Tests at the bottom of `src/serve/mod.rs`:
+- [ ] **Step 1: Add test module at the bottom of serve/mod.rs**
 
 ```rust
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::diff::{DcmDiffResult, DiffMetadata, DiffSummary};
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
 
     fn make_result() -> DcmDiffResult {
         DcmDiffResult {
@@ -600,6 +584,8 @@ mod tests {
             ],
         }
     }
+
+    // -- Unit tests for block_type_from_desc helper --
 
     #[test]
     fn test_block_type_from_desc_new() {
@@ -635,42 +621,88 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_csv_new_export_format() {
-        let result = make_result();
-        let new_diffs: Vec<&DcmDiff> = result
-            .differences
-            .iter()
-            .filter(|d| matches!(d, DcmDiff::New { .. }))
-            .collect();
-        assert_eq!(new_diffs.len(), 1);
-        let name = match new_diffs[0] {
-            DcmDiff::New { name, .. } => name,
-            _ => unreachable!(),
-        };
-        assert_eq!(name, "NEW_VAR");
+    // -- HTTP integration tests using axum Router::oneshot --
+
+    #[tokio::test]
+    async fn test_index_returns_200_with_html() {
+        let state = Arc::new(make_result());
+        let router = build_router(state);
+
+        let request = Request::builder()
+            .uri("/")
+            .body(Body::empty())
+            .unwrap();
+        let response = router.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let content_type = response.headers().get("content-type").unwrap().to_str().unwrap();
+        assert!(content_type.contains("text/html"));
+        let body_bytes = axum::body::to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+        let body = String::from_utf8(body_bytes.to_vec()).unwrap();
+        assert!(body.contains("DCM Diff Report"));
+        assert!(body.contains("left.DCM"));
+        assert!(body.contains("right.DCM"));
+        assert!(body.contains("NEW_VAR"));
+        assert!(body.contains("CHG_VAR"));
+        assert!(body.contains("OLD_VAR"));
     }
 
-    #[test]
-    fn test_csv_deleted_export_format() {
-        let result = make_result();
-        let del_diffs: Vec<&DcmDiff> = result
-            .differences
-            .iter()
-            .filter(|d| matches!(d, DcmDiff::Deleted { .. }))
-            .collect();
-        assert_eq!(del_diffs.len(), 1);
+    #[tokio::test]
+    async fn test_export_new_csv() {
+        let state = Arc::new(make_result());
+        let router = build_router(state);
+
+        let request = Request::builder()
+            .uri("/export/new")
+            .body(Body::empty())
+            .unwrap();
+        let response = router.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let content_type = response.headers().get("content-type").unwrap().to_str().unwrap();
+        assert!(content_type.contains("text/csv"));
+        let body_bytes = axum::body::to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+        let body = String::from_utf8(body_bytes.to_vec()).unwrap();
+        assert!(body.contains("Variable Name"));
+        assert!(body.contains("NEW_VAR"));
+        assert!(!body.contains("OLD_VAR")); // only new items
     }
 
-    #[test]
-    fn test_csv_changed_export_format() {
-        let result = make_result();
-        let chg_diffs: Vec<&DcmDiff> = result
-            .differences
-            .iter()
-            .filter(|d| matches!(d, DcmDiff::Changed { .. } | DcmDiff::ChangedMap { .. }))
-            .collect();
-        assert_eq!(chg_diffs.len(), 1);
+    #[tokio::test]
+    async fn test_export_deleted_csv() {
+        let state = Arc::new(make_result());
+        let router = build_router(state);
+
+        let request = Request::builder()
+            .uri("/export/deleted")
+            .body(Body::empty())
+            .unwrap();
+        let response = router.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body_bytes = axum::body::to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+        let body = String::from_utf8(body_bytes.to_vec()).unwrap();
+        assert!(body.contains("OLD_VAR"));
+        assert!(!body.contains("NEW_VAR"));
+    }
+
+    #[tokio::test]
+    async fn test_export_changed_csv() {
+        let state = Arc::new(make_result());
+        let router = build_router(state);
+
+        let request = Request::builder()
+            .uri("/export/changed")
+            .body(Body::empty())
+            .unwrap();
+        let response = router.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body_bytes = axum::body::to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+        let body = String::from_utf8(body_bytes.to_vec()).unwrap();
+        assert!(body.contains("CHG_VAR"));
+        assert!(!body.contains("NEW_VAR"));
+        assert!(!body.contains("OLD_VAR"));
     }
 }
 ```
@@ -681,13 +713,13 @@ mod tests {
 cargo test serve
 ```
 
-Expected: all 7 tests pass.
+Expected: all 9 tests pass (4 unit + 5 HTTP integration).
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add src/serve/mod.rs
-git commit -m "test: add unit tests for serve module"
+git commit -m "test: add unit and integration tests for serve module"
 ```
 
 ---
