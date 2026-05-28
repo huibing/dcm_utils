@@ -17,10 +17,10 @@ clap = {version = "4.5.38", features = ["derive"]}
 regex = "1.11.1"
 colored = "3.0.0"
 ihex = "3.0"
+approx = "0.5.1"
 a2ldeser = { git = "https://github.com/huibing/a2ldeser" }
 a2lfile = "3.3"
 
 
 [dev-dependencies]
 rstest = {version = "0.24.0"}
-approx = "0.5.1"
