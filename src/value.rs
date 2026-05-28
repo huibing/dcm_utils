@@ -1,3 +1,4 @@
+use approx::relative_eq;
 use crate::attr::value_attr::ValueAttr;
 use log::warn;
 use serde::de::{self, SeqAccess, Visitor};
@@ -62,6 +63,23 @@ impl Value {
             Self::TEXT(_) => Err("cannot convert TEXT to f64".into()),
         }
     }
+
+    pub fn approx_eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Value::WERT(v1), Value::WERT(v2)) => approx_eq_f64_slice(v1, v2),
+            (Value::TEXT(v1), Value::TEXT(v2)) => v1 == v2,
+            _ => false,
+        }
+    }
+}
+
+pub(crate) fn approx_eq_f64_slice(a: &[f64], b: &[f64]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter()
+        .zip(b.iter())
+        .all(|(x, y)| relative_eq!(x, y, max_relative = 1e-8, epsilon = 1e-12))
 }
 
 impl From<ValueAttr> for Value {
@@ -198,5 +216,96 @@ mod tests {
         let expected_json = r#"["hello","not a number"]"#;
         let json = serde_json::to_string(&value).unwrap();
         assert_eq!(json, expected_json);
+    }
+
+    #[rstest]
+    fn test_approx_eq_wert_exact() {
+        let v1 = Value::WERT(vec![1.0, 2.0, 3.0]);
+        let v2 = Value::WERT(vec![1.0, 2.0, 3.0]);
+        assert!(v1.approx_eq(&v2));
+    }
+
+    #[rstest]
+    fn test_approx_eq_wert_near_equal() {
+        let v1 = Value::WERT(vec![1.0, 2.0]);
+        let v2 = Value::WERT(vec![1.0 + 1e-9, 2.0 + 1e-9]);
+        assert!(v1.approx_eq(&v2));
+    }
+
+    #[rstest]
+    fn test_approx_eq_wert_clearly_different() {
+        let v1 = Value::WERT(vec![1.0, 2.0]);
+        let v2 = Value::WERT(vec![1.0, 2.1]);
+        assert!(!v1.approx_eq(&v2));
+    }
+
+    #[rstest]
+    fn test_approx_eq_wert_zero_vs_near_zero() {
+        let v1 = Value::WERT(vec![0.0]);
+        let v2 = Value::WERT(vec![1e-13]);
+        assert!(v1.approx_eq(&v2));
+    }
+
+    #[rstest]
+    fn test_approx_eq_wert_zero_vs_different() {
+        let v1 = Value::WERT(vec![0.0]);
+        let v2 = Value::WERT(vec![0.01]);
+        assert!(!v1.approx_eq(&v2));
+    }
+
+    #[rstest]
+    fn test_approx_eq_text() {
+        let v1 = Value::TEXT(vec!["hello".to_string()]);
+        let v2 = Value::TEXT(vec!["hello".to_string()]);
+        assert!(v1.approx_eq(&v2));
+    }
+
+    #[rstest]
+    fn test_approx_eq_text_different() {
+        let v1 = Value::TEXT(vec!["hello".to_string()]);
+        let v2 = Value::TEXT(vec!["world".to_string()]);
+        assert!(!v1.approx_eq(&v2));
+    }
+
+    #[rstest]
+    fn test_approx_eq_mixed_types() {
+        let v1 = Value::WERT(vec![1.0]);
+        let v2 = Value::TEXT(vec!["1.0".to_string()]);
+        assert!(!v1.approx_eq(&v2));
+    }
+
+    #[rstest]
+    fn test_approx_eq_different_lengths() {
+        let v1 = Value::WERT(vec![1.0, 2.0]);
+        let v2 = Value::WERT(vec![1.0]);
+        assert!(!v1.approx_eq(&v2));
+    }
+
+    #[rstest]
+    fn test_approx_eq_empty_wert() {
+        let v1 = Value::WERT(vec![]);
+        let v2 = Value::WERT(vec![]);
+        assert!(v1.approx_eq(&v2));
+    }
+
+    #[rstest]
+    fn test_approx_eq_f64_slice() {
+        let a = vec![1.0, 2.0, 3.0];
+        let b = vec![1.0 + 1e-9, 2.0 + 1e-9, 3.0 + 1e-9];
+        assert!(approx_eq_f64_slice(&a, &b));
+    }
+
+    #[rstest]
+    fn test_approx_eq_f64_slice_zero() {
+        let a = vec![0.0];
+        let b = vec![1e-13];
+        assert!(approx_eq_f64_slice(&a, &b));
+    }
+
+    #[rstest]
+    fn test_approx_eq_f64_slice_different() {
+        let a = vec![1.0, 2.0];
+        let b = vec![1.0, 2.1];
+        assert!(!approx_eq_f64_slice(&a, &b));
     }
 }
