@@ -555,6 +555,7 @@ mod tests {
     use crate::diff::{DcmDiffResult, DiffMetadata, DiffSummary};
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
+    use tower::util::ServiceExt;
 
     fn make_result() -> DcmDiffResult {
         DcmDiffResult {
