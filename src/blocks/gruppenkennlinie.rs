@@ -6,7 +6,7 @@ use crate::AxisType;
 use log::{info, warn};
 use std::str::FromStr;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GRUPPENKENNLINIE {
     pub name: String,
     pub attrs: Vec<StringAttr>,

@@ -5,7 +5,7 @@ use log::{info, warn};
 use std::error::Error;
 use std::str::FromStr;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FESTWERT {
     pub attrs: Vec<StringAttr>,
     pub value: Value, // for FESTWERT, only one value in the vector

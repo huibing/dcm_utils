@@ -5,7 +5,7 @@ use crate::value::Value;
 use log::{info, warn};
 use std::str::FromStr;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct STUETZSTELLENVERTEILUNG {
     pub name: String,
     pub attrs: Vec<StringAttr>,

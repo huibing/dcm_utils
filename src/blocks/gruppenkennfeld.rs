@@ -7,7 +7,7 @@ use log::{info, warn};
 use serde::Serialize;
 use std::str::FromStr;
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct GRUPPENKENNFELD {
     pub name: String,
     pub attrs: Vec<StringAttr>,
