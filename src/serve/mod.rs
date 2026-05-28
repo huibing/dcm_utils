@@ -8,6 +8,7 @@ use axum::{
     Router,
 };
 use handlebars::Handlebars;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Shared application state passed to axum handlers.
@@ -30,6 +31,59 @@ fn block_type_from_desc(desc: &str) -> &str {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers: build detailed change data for modal comparison view
+// ---------------------------------------------------------------------------
+
+fn build_change_detail(
+    old: &crate::value::Value,
+    new: &crate::value::Value,
+    block_type: &str,
+) -> serde_json::Value {
+    match (old, new) {
+        (crate::value::Value::WERT(old_vals), crate::value::Value::WERT(new_vals)) => {
+            let kind = if old_vals.len() <= 1 { "scalar" } else { "multi" };
+            serde_json::json!({
+                "kind": kind,
+                "block_type": block_type,
+                "old_values": old_vals,
+                "new_values": new_vals,
+            })
+        }
+        (crate::value::Value::TEXT(old_text), crate::value::Value::TEXT(new_text)) => {
+            serde_json::json!({
+                "kind": "text",
+                "block_type": block_type,
+                "old_text": old_text,
+                "new_text": new_text,
+            })
+        }
+        _ => {
+            serde_json::json!({
+                "kind": "mixed",
+                "block_type": block_type,
+            })
+        }
+    }
+}
+
+fn build_map_change_detail(detail: &crate::diff::MapChangeDetail) -> serde_json::Value {
+    serde_json::json!({
+        "kind": "map",
+        "block_type": "GRUPPENKENNFELD",
+        "dim_x": detail.old_values.dim_x,
+        "dim_y": detail.old_values.dim_y,
+        "old_values": detail.old_values.values,
+        "new_values": detail.new_values.values,
+        "old_x_axis": detail.old_values.x_axis,
+        "new_x_axis": detail.new_values.x_axis,
+        "old_y_axis": detail.old_values.y_axis,
+        "new_y_axis": detail.new_values.y_axis,
+        "x_axis_name": detail.old_values.x_axis_name,
+        "y_axis_name": detail.old_values.y_axis_name,
+    })
+}
+
+// ---------------------------------------------------------------------------
 // Handlers
 // ---------------------------------------------------------------------------
 
@@ -46,38 +100,63 @@ async fn index(State(state): State<AppState>) -> Result<Response, AppError> {
     let mut deleted_items = Vec::new();
     let mut changed_items = Vec::new();
 
-    for (i, diff) in result.differences.iter().enumerate() {
+    let mut new_idx = 1usize;
+    let mut deleted_idx = 1usize;
+    let mut changed_idx = 1usize;
+    let mut change_details: HashMap<String, serde_json::Value> = HashMap::new();
+
+    for diff in &result.differences {
         match diff {
             DcmDiff::New { name, description } => {
                 let desc = description.as_deref().unwrap_or("");
                 new_items.push(serde_json::json!({
-                    "index": i + 1,
+                    "index": new_idx,
                     "name": name,
                     "type": block_type_from_desc(desc),
                     "description": desc,
                 }));
+                new_idx += 1;
             }
             DcmDiff::Deleted { name, description } => {
                 let desc = description.as_deref().unwrap_or("");
                 deleted_items.push(serde_json::json!({
-                    "index": i + 1,
+                    "index": deleted_idx,
                     "name": name,
                     "type": block_type_from_desc(desc),
                     "description": desc,
                 }));
+                deleted_idx += 1;
             }
-            DcmDiff::Changed { name, description, .. }
-            | DcmDiff::ChangedMap { name, description, .. } => {
+            DcmDiff::Changed { name, old, new, description } => {
                 let desc = description.as_deref().unwrap_or("");
+                let btype = block_type_from_desc(desc);
+                change_details.insert(name.clone(), build_change_detail(old, new, btype));
                 changed_items.push(serde_json::json!({
-                    "index": i + 1,
+                    "index": changed_idx,
                     "name": name,
-                    "type": block_type_from_desc(desc),
+                    "type": btype,
                     "change_summary": desc,
                 }));
+                changed_idx += 1;
+            }
+            DcmDiff::ChangedMap { name, description, detail } => {
+                let desc = description.as_deref().unwrap_or("");
+                let btype = block_type_from_desc(desc);
+                change_details.insert(name.clone(), build_map_change_detail(detail));
+                changed_items.push(serde_json::json!({
+                    "index": changed_idx,
+                    "name": name,
+                    "type": btype,
+                    "change_summary": desc,
+                }));
+                changed_idx += 1;
             }
         }
     }
+
+    let details_json = serde_json::to_string(&change_details).unwrap_or_default();
+    // Prevent "</script>" from breaking out of the embedded script tag
+    let safe_details_json = details_json.replace("</", "<\\/");
 
     let ctx = serde_json::json!({
         "metadata": result.metadata,
@@ -86,6 +165,8 @@ async fn index(State(state): State<AppState>) -> Result<Response, AppError> {
         "new_items": new_items,
         "deleted_items": deleted_items,
         "changed_items": changed_items,
+        "change_details_json": safe_details_json,
+        "has_changes": !change_details.is_empty(),
     });
 
     let html = reg
@@ -128,7 +209,7 @@ fn csv_escape_field(s: &str) -> String {
     } else {
         s.to_string()
     };
-    if sanitized.contains(',') || sanitized.contains('"') || sanitized.contains('\n') {
+    if sanitized.contains(',') || sanitized.contains('"') || sanitized.contains('\n') || sanitized.contains('\r') {
         format!("\"{}\"", sanitized.replace('"', "\"\""))
     } else {
         sanitized
@@ -332,6 +413,9 @@ mod tests {
         assert!(body.contains("NEW_VAR"));
         assert!(body.contains("CHG_VAR"));
         assert!(body.contains("OLD_VAR"));
+        // Verify change details JSON is embedded for modal
+        assert!(body.contains("change-details"));
+        assert!(body.contains("\"kind\":\"scalar\""));
     }
 
     #[tokio::test]

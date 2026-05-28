@@ -23,8 +23,7 @@ a2lfile = "3.3"
 axum = "0.8"
 tokio = { version = "1", features = ["full"] }
 open = "5"
-tower = "0.5"
-
 
 [dev-dependencies]
 rstest = {version = "0.24.0"}
+tower = "0.5"
