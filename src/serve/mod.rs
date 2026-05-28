@@ -235,3 +235,159 @@ async fn shutdown_signal() {
         .await
         .expect("failed to listen for Ctrl+C");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::diff::{DcmDiffResult, DiffMetadata, DiffSummary};
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use tower::util::ServiceExt;
+
+    fn make_result() -> DcmDiffResult {
+        DcmDiffResult {
+            metadata: DiffMetadata::new("left.DCM", "right.DCM"),
+            summary: DiffSummary {
+                new_count: 1,
+                deleted_count: 1,
+                changed_count: 1,
+                total: 3,
+            },
+            differences: vec![
+                DcmDiff::New {
+                    name: "NEW_VAR".into(),
+                    description: Some("New FESTWERT block 'NEW_VAR'".into()),
+                },
+                DcmDiff::Deleted {
+                    name: "OLD_VAR".into(),
+                    description: Some("Deleted FESTWERTEBLOCK block 'OLD_VAR'".into()),
+                },
+                DcmDiff::Changed {
+                    name: "CHG_VAR".into(),
+                    old: crate::value::Value::WERT(vec![1.0]),
+                    new: crate::value::Value::WERT(vec![2.0]),
+                    description: Some("FESTWERT 'CHG_VAR' value changed".into()),
+                },
+            ],
+        }
+    }
+
+    // -- Unit tests for block_type_from_desc helper --
+
+    #[test]
+    fn test_block_type_from_desc_new() {
+        assert_eq!(
+            block_type_from_desc("New FESTWERT block 'VAR_0042'"),
+            "FESTWERT"
+        );
+    }
+
+    #[test]
+    fn test_block_type_from_desc_deleted() {
+        assert_eq!(
+            block_type_from_desc("Deleted GRUPPENKENNLINIE block 'VAR_X'"),
+            "GRUPPENKENNLINIE"
+        );
+    }
+
+    #[test]
+    fn test_block_type_from_desc_changed() {
+        assert_eq!(
+            block_type_from_desc("FESTWERT 'VAR_0019' value changed"),
+            "FESTWERT"
+        );
+    }
+
+    #[test]
+    fn test_block_type_from_desc_changed_map() {
+        assert_eq!(
+            block_type_from_desc(
+                "GRUPPENKENNFELD 'VAR_0530' changed: dimensions: (3, 7) -> (3, 7)"
+            ),
+            "GRUPPENKENNFELD"
+        );
+    }
+
+    // -- HTTP integration tests using axum Router::oneshot --
+
+    #[tokio::test]
+    async fn test_index_returns_200_with_html() {
+        let state = Arc::new((make_result(), false));
+        let router = build_router(state);
+
+        let request = Request::builder()
+            .uri("/")
+            .body(Body::empty())
+            .unwrap();
+        let response = router.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let content_type = response.headers().get("content-type").unwrap().to_str().unwrap();
+        assert!(content_type.contains("text/html"));
+        let body_bytes = axum::body::to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+        let body = String::from_utf8(body_bytes.to_vec()).unwrap();
+        assert!(body.contains("DCM Diff Report"));
+        assert!(body.contains("left.DCM"));
+        assert!(body.contains("right.DCM"));
+        assert!(body.contains("NEW_VAR"));
+        assert!(body.contains("CHG_VAR"));
+        assert!(body.contains("OLD_VAR"));
+    }
+
+    #[tokio::test]
+    async fn test_export_new_csv() {
+        let state = Arc::new((make_result(), false));
+        let router = build_router(state);
+
+        let request = Request::builder()
+            .uri("/export/new")
+            .body(Body::empty())
+            .unwrap();
+        let response = router.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let content_type = response.headers().get("content-type").unwrap().to_str().unwrap();
+        assert!(content_type.contains("text/csv"));
+        let body_bytes = axum::body::to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+        let body = String::from_utf8(body_bytes.to_vec()).unwrap();
+        assert!(body.contains("Variable Name"));
+        assert!(body.contains("NEW_VAR"));
+        assert!(!body.contains("OLD_VAR")); // only new items
+    }
+
+    #[tokio::test]
+    async fn test_export_deleted_csv() {
+        let state = Arc::new((make_result(), false));
+        let router = build_router(state);
+        let request = Request::builder()
+            .uri("/export/deleted")
+            .body(Body::empty())
+            .unwrap();
+        let response = router.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body_bytes = axum::body::to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+        let body = String::from_utf8(body_bytes.to_vec()).unwrap();
+        assert!(body.contains("OLD_VAR"));
+        assert!(!body.contains("NEW_VAR"));
+    }
+
+    #[tokio::test]
+    async fn test_export_changed_csv() {
+        let state = Arc::new((make_result(), false));
+        let router = build_router(state);
+
+        let request = Request::builder()
+            .uri("/export/changed")
+            .body(Body::empty())
+            .unwrap();
+        let response = router.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body_bytes = axum::body::to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+        let body = String::from_utf8(body_bytes.to_vec()).unwrap();
+        assert!(body.contains("CHG_VAR"));
+        assert!(!body.contains("NEW_VAR"));
+        assert!(!body.contains("OLD_VAR"));
+    }
+}
