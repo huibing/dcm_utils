@@ -37,9 +37,10 @@ Add `approx_eq` methods to `Value` and `Block` alongside the existing `PartialEq
 - Length mismatch: false (unchanged)
 
 **`Block::approx_eq`** (`block.rs`):
-- Same structure as `PartialEq`, but calls `Value::approx_eq` instead of `==`
-- Axis vectors (`Vec<f64>`) use a shared helper `fn approx_eq_f64_slice(a: &[f64], b: &[f64]) -> bool` that applies the same `relative_eq!(max_relative = 1e-8, epsilon = 1e-12)` element-wise
-- Map variant: include `x_axis_name` and `y_axis_name` string comparison (fixing the existing `PartialEq` omission where these are not checked in `Block::PartialEq`)
+- Same structure as the corrected `PartialEq` (see bug fix below), but calls `Value::approx_eq` instead of `==`
+- Axis vectors (`Vec<f64>`) use a shared helper `fn approx_eq_f64_slice(a: &[f64], b: &[f64]) -> bool` (defined in `value.rs` as `pub(crate)`) that applies the same `relative_eq!(max_relative = 1e-8, epsilon = 1e-12)` element-wise
+
+**Pre-existing bug fix** — `Block::PartialEq` for Map variant (block.rs:91-93) omits `x_axis_name` and `y_axis_name` comparison that `GRUPPENKENNFELD::PartialEq` (gruppenkennfeld.rs:198-206) includes. Fix `Block::PartialEq` to check both axis name strings. Then `Block::approx_eq` mirrors the same structure. Approximate equality must never be stricter than exact equality.
 
 ### Warning Log
 
@@ -51,7 +52,7 @@ WARN - Approximate comparison enabled: float differences within relative toleran
 ### Edge Cases
 
 - **Near-zero values**: `relative_eq!` alone is undefined for zero. The `epsilon = 1e-12` parameter handles this: two values within `1e-12` absolute difference are treated as equal regardless of magnitude. This covers f32-to-f64 conversion noise for zero and near-zero calibration values.
-- **NaN/Inf**: `approx::relative_eq!` returns `false` for any comparison involving NaN. This is acceptable behavior — NaN in DCM calibration data is invalid, so treating NaN != anything as a diff is correct. No special handling needed.
+- **NaN/Inf**: `approx::relative_eq!` returns `false` for any comparison involving NaN, `true` for `inf == inf`, and `false` for `inf != finite`. These are correct behaviors for DCM calibration data. No special handling needed.
 - **Empty vectors**: `Value::WERT(vec![])` compared with another empty WERT returns `true`. Unequal-length vectors return `false`.
 
 ### Call Path
@@ -61,13 +62,16 @@ main.rs: Diff { approx, ... }
   -> dcm_diff_with_metadata(&left, &right, &left_src, &right_src, approx)
     -> dcm_diff_with_details(left, right, detailed, approx)
       -> if approx { left_block.approx_eq(right_block) } else { left_block == right_block }
+      -> generate_change_description(name, left_block, right_block, approx)
+           (uses Value::approx_eq / approx_eq_f64_slice for float fields when approx=true,
+            exact == for string/dim fields regardless)
 ```
 
 ## What Stays the Same
 
 - Default behavior (no `--approx`): exact `==` comparison, no changes
-- `PartialEq` impls on `Value` and `Block` are untouched
-- `generate_change_description` uses approximate comparison for Value/axis fields when `--approx` is active, so it won't report "values changed" for float-noise differences the user chose to suppress
+- `PartialEq` impl on `Value` is untouched; `Block::PartialEq` gets the axis_name bug fix
+- `generate_change_description` gains an `approx: bool` parameter and uses `Value::approx_eq` / `approx_eq_f64_slice` for float fields when `approx=true`, exact `==` for string/dim fields regardless
 
 ## Dependencies
 
