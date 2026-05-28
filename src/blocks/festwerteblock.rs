@@ -12,12 +12,16 @@ pub struct FESTWERTEBLOCK {
     pub value: Value, // for FESTWERT, only one value in the vector
     pub name: String,
     pub dim: usize,
+    pub source_path: Option<String>,
+    pub source_line: usize,
 }
 
-impl FromStr for FESTWERTEBLOCK {
-    type Err = Box<dyn Error>;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+impl FESTWERTEBLOCK {
+    pub fn parse_with_context(
+        s: &str,
+        source_path: Option<&str>,
+        source_line: usize,
+    ) -> Result<Self, Box<dyn Error>> {
         let mut attrs: Vec<StringAttr> = Vec::new();
         let mut lines = s.lines();
         let mut value: Value = Value::new();
@@ -30,7 +34,8 @@ impl FromStr for FESTWERTEBLOCK {
             .next()
             .ok_or::<&str>("no dim found")?
             .parse::<usize>()?;
-        for line in lines {
+        for (i, line) in lines.enumerate() {
+            let abs_line = source_line + i + 1;
             match line.parse::<Attr>() {
                 Ok(Attr::StringAttr(sa)) => attrs.push(sa),
                 Ok(Attr::ValueAttr(v)) => {
@@ -45,7 +50,11 @@ impl FromStr for FESTWERTEBLOCK {
                 }
                 Ok(Attr::EmptyLine) => {}
                 Err(err_msg) => {
-                    warn!("error {} parsing line: {}", err_msg, line);
+                    if let Some(path) = source_path {
+                        warn!("[{}:{}] error {} parsing line: {}", path, abs_line, err_msg, line);
+                    } else {
+                        warn!("error {} parsing line: {}", err_msg, line);
+                    }
                 }
             }
         }
@@ -57,7 +66,17 @@ impl FromStr for FESTWERTEBLOCK {
             attrs,
             value,
             dim,
+            source_path: source_path.map(String::from),
+            source_line,
         })
+    }
+}
+
+impl FromStr for FESTWERTEBLOCK {
+    type Err = Box<dyn Error>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::parse_with_context(s, None, 0)
     }
 }
 
@@ -79,6 +98,8 @@ impl FESTWERTEBLOCK {
                 StringAttr::new("EINHEIT_W", unit.as_str()),
             ],
             dim,
+            source_path: None,
+            source_line: 0,
         }
     }
 
@@ -93,6 +114,8 @@ impl FESTWERTEBLOCK {
                 StringAttr::new("EINHEIT_W", unit.as_str()),
             ],
             dim,
+            source_path: None,
+            source_line: 0,
         }
     }
 }

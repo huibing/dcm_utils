@@ -11,12 +11,16 @@ pub struct STUETZSTELLENVERTEILUNG {
     pub attrs: Vec<StringAttr>,
     pub value: Value,
     pub dim: usize,
+    pub source_path: Option<String>,
+    pub source_line: usize,
 }
 
-impl FromStr for STUETZSTELLENVERTEILUNG {
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+impl STUETZSTELLENVERTEILUNG {
+    pub fn parse_with_context(
+        s: &str,
+        source_path: Option<&str>,
+        source_line: usize,
+    ) -> Result<Self, &'static str> {
         let mut lines = s.lines();
         let mut attrs = Vec::new();
         let mut value: Value = Value::new();
@@ -34,7 +38,8 @@ impl FromStr for STUETZSTELLENVERTEILUNG {
             .ok_or("no dim found in STUETZSTELLENVERTEILUNG")?
             .parse::<usize>()
             .unwrap();
-        for line in lines {
+        for (i, line) in lines.enumerate() {
+            let abs_line = source_line + i + 1;
             match line.parse::<Attr>() {
                 Ok(Attr::StringAttr(sa)) => attrs.push(sa),
                 Ok(Attr::ValueAttr(va)) => {
@@ -46,14 +51,21 @@ impl FromStr for STUETZSTELLENVERTEILUNG {
                 }
                 Ok(Attr::EmptyLine) => {}
                 Ok(Attr::AxisVar(_)) => {
-                    warn!(
-                        "STUETZSTELLENVERTEILUNG shall not have axis var line: {}",
-                        line
-                    );
+                    if let Some(path) = source_path {
+                        warn!("[{}:{}] STUETZSTELLENVERTEILUNG shall not have axis var line: {}", path, abs_line, line);
+                    } else {
+                        warn!(
+                            "STUETZSTELLENVERTEILUNG shall not have axis var line: {}",
+                            line
+                        );
+                    }
                 }
                 Err(error_msg) => {
-                    info!("error parsing line: {}, error: {}", line, error_msg);
-                    //shall not stop the parser
+                    if let Some(path) = source_path {
+                        warn!("[{}:{}] error parsing line: {}, error: {}", path, abs_line, line, error_msg);
+                    } else {
+                        info!("error parsing line: {}, error: {}", line, error_msg);
+                    }
                 }
             }
         }
@@ -62,7 +74,17 @@ impl FromStr for STUETZSTELLENVERTEILUNG {
             attrs,
             value,
             dim,
+            source_path: source_path.map(String::from),
+            source_line,
         })
+    }
+}
+
+impl FromStr for STUETZSTELLENVERTEILUNG {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::parse_with_context(s, None, 0)
     }
 }
 
@@ -84,6 +106,8 @@ impl STUETZSTELLENVERTEILUNG {
             ],
             value,
             dim,
+            source_path: None,
+            source_line: 0,
         }
     }
 }

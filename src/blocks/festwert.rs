@@ -10,12 +10,16 @@ pub struct FESTWERT {
     pub attrs: Vec<StringAttr>,
     pub value: Value, // for FESTWERT, only one value in the vector
     pub name: String,
+    pub source_path: Option<String>,
+    pub source_line: usize,
 }
 
-impl FromStr for FESTWERT {
-    type Err = Box<dyn Error>;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+impl FESTWERT {
+    pub fn parse_with_context(
+        s: &str,
+        source_path: Option<&str>,
+        source_line: usize,
+    ) -> Result<Self, Box<dyn Error>> {
         let mut attrs: Vec<StringAttr> = Vec::new();
         let mut lines = s.lines();
         let mut value: Value = Value::new();
@@ -26,7 +30,8 @@ impl FromStr for FESTWERT {
             .last()
             .ok_or::<&str>("no name found")?
             .to_string();
-        for line in lines {
+        for (i, line) in lines.enumerate() {
+            let abs_line = source_line + i + 1;
             match line.parse::<Attr>() {
                 Ok(Attr::StringAttr(sa)) => attrs.push(sa),
                 Ok(Attr::ValueAttr(v)) => value = v.into(),
@@ -35,14 +40,32 @@ impl FromStr for FESTWERT {
                 }
                 Ok(Attr::EmptyLine) => {}
                 Err(err_msg) => {
-                    warn!("error {} parsing line: {}", err_msg, line);
+                    if let Some(path) = source_path {
+                        warn!("[{}:{}] error {} parsing line: {}", path, abs_line, err_msg, line);
+                    } else {
+                        warn!("error {} parsing line: {}", err_msg, line);
+                    }
                 }
             }
         }
         if value.is_empty() {
             return Err(format!("no value found in FESTWERT {name}").into());
         }
-        Ok(FESTWERT { name, attrs, value })
+        Ok(FESTWERT {
+            name,
+            attrs,
+            value,
+            source_path: source_path.map(String::from),
+            source_line,
+        })
+    }
+}
+
+impl FromStr for FESTWERT {
+    type Err = Box<dyn Error>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::parse_with_context(s, None, 0)
     }
 }
 
@@ -56,6 +79,8 @@ impl FESTWERT {
                 StringAttr::new("LANGNAME", desc.as_str()),
                 StringAttr::new("EINHEIT_W", unit.as_str()),
             ],
+            source_path: None,
+            source_line: 0,
         }
     }
 
@@ -68,6 +93,8 @@ impl FESTWERT {
                 StringAttr::new("LANGNAME", desc.as_str()),
                 StringAttr::new("EINHEIT_W", unit.as_str()),
             ],
+            source_path: None,
+            source_line: 0,
         }
     }
 }

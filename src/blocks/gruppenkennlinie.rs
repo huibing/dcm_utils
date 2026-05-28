@@ -14,12 +14,16 @@ pub struct GRUPPENKENNLINIE {
     pub axis: Vec<f64>,
     pub axis_var_name: String,
     pub dim: usize,
+    pub source_path: Option<String>,
+    pub source_line: usize,
 }
 
-impl FromStr for GRUPPENKENNLINIE {
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+impl GRUPPENKENNLINIE {
+    pub fn parse_with_context(
+        s: &str,
+        source_path: Option<&str>,
+        source_line: usize,
+    ) -> Result<Self, &'static str> {
         let mut lines = s.lines();
         let mut attrs = Vec::new();
         let mut value = Value::new();
@@ -39,7 +43,8 @@ impl FromStr for GRUPPENKENNLINIE {
             .ok_or("no dim found")?
             .parse::<usize>()
             .unwrap();
-        for line in lines {
+        for (i, line) in lines.enumerate() {
+            let abs_line = source_line + i + 1;
             match line.parse::<Attr>() {
                 Ok(Attr::StringAttr(sa)) => attrs.push(sa),
                 Ok(Attr::ValueAttr(va)) => {
@@ -61,8 +66,11 @@ impl FromStr for GRUPPENKENNLINIE {
                 }
                 Ok(Attr::EmptyLine) => {}
                 Err(error_msg) => {
-                    warn!("error parsing line: {}, error: {}", line, error_msg);
-                    //shall not stop the parser
+                    if let Some(path) = source_path {
+                        warn!("[{}:{}] error parsing line: {}, error: {}", path, abs_line, line, error_msg);
+                    } else {
+                        warn!("error parsing line: {}, error: {}", line, error_msg);
+                    }
                 }
             }
         }
@@ -73,7 +81,17 @@ impl FromStr for GRUPPENKENNLINIE {
             axis,
             axis_var_name,
             dim,
+            source_path: source_path.map(String::from),
+            source_line,
         })
+    }
+}
+
+impl FromStr for GRUPPENKENNLINIE {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::parse_with_context(s, None, 0)
     }
 }
 
@@ -108,6 +126,8 @@ impl GRUPPENKENNLINIE {
             axis: axis.to_owned(),
             axis_var_name: axis_var_name.to_string(),
             dim,
+            source_path: None,
+            source_line: 0,
         }
     }
 
@@ -133,6 +153,8 @@ impl GRUPPENKENNLINIE {
             axis,
             axis_var_name,
             dim,
+            source_path: None,
+            source_line: 0,
         }
     }
 }

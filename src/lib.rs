@@ -23,7 +23,7 @@ use serde_json::json;
 use std::env;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use value::Value;
 
 /* handler bars helper */
@@ -75,117 +75,141 @@ pub enum AxisType {
 
 pub struct DcmData {
     pub blocks: IndexMap<String, Block>,
+    pub source_path: Option<PathBuf>,
 }
 
 impl DcmData {
     pub fn from_blocks(blocks: IndexMap<String, Block>) -> Self {
-        DcmData { blocks }
+        DcmData { blocks, source_path: None }
     }
 
     pub fn new(path: &Path) -> Self {
         // shall not return error here
         let mut file = File::open(path).unwrap();
         let reader = BufReader::new(&mut file);
+        let all_lines: Vec<String> = reader.lines().map(|l| l.unwrap_or("".to_string())).collect(); // shall not return error if coding is not UTF-8
+        let source_path = Some(path.to_path_buf());
         let mut blocks = IndexMap::new();
 
-        let mut lines = reader.lines().map(|l| l.unwrap_or("".to_string())); // shall not return error if coding is not UTF-8
-        let mut line = lines.next();
-        while line.is_some() {
+        let mut idx = 0;
+        let file_path = path.to_string_lossy().to_string();
+        while idx < all_lines.len() {
+            let block_start = idx + 1; // 1-based line number
             let mut block = Vec::new();
-            if line.as_ref().unwrap().starts_with("FESTWERT ") {
+            if all_lines[idx].starts_with("FESTWERT ") {
                 // constant
-                loop {
-                    block.push(line.unwrap());
-                    line = lines.next();
-                    if line.is_none() || line.as_ref().unwrap().starts_with("END") {
-                        let constant = block.join("\n").parse::<FESTWERT>().unwrap();
-                        blocks
-                            .entry(constant.name.clone())
-                            .and_modify(|_| warn!("Duplicate constant name: {}", constant.name))
-                            .or_insert(Block::Constant(constant));
-                        break;
-                    }
+                block.push(all_lines[idx].clone());
+                idx += 1;
+                while idx < all_lines.len() && !all_lines[idx].trim_start().starts_with("END") {
+                    block.push(all_lines[idx].clone());
+                    idx += 1;
                 }
-            } else if line.as_ref().unwrap().starts_with("TEXTSTRING ") {
+                if idx < all_lines.len() {
+                    idx += 1; // skip END line
+                }
+                let text = block.join("\n");
+                let constant = FESTWERT::parse_with_context(&text, Some(&file_path), block_start)
+                    .expect("Failed to parse FESTWERT");
+                blocks
+                    .entry(constant.name.clone())
+                    .and_modify(|_| warn!("[{}:{}] Duplicate constant name: {}", file_path, block_start, constant.name))
+                    .or_insert(Block::Constant(constant));
+            } else if all_lines[idx].starts_with("TEXTSTRING ") {
                 // text string constant
-                loop {
-                    block.push(line.unwrap());
-                    line = lines.next();
-                    if line.is_none() || line.as_ref().unwrap().starts_with("END") {
-                        let constant = block.join("\n").parse::<FESTWERT>().unwrap();
-                        blocks
-                            .entry(constant.name.clone())
-                            .and_modify(|_| warn!("Duplicate constant name: {}", constant.name))
-                            .or_insert(Block::Constant(constant));
-                        break;
-                    }
+                block.push(all_lines[idx].clone());
+                idx += 1;
+                while idx < all_lines.len() && !all_lines[idx].trim_start().starts_with("END") {
+                    block.push(all_lines[idx].clone());
+                    idx += 1;
                 }
-            } else if line.as_ref().unwrap().starts_with("GRUPPENKENNLINIE ") {
+                if idx < all_lines.len() {
+                    idx += 1; // skip END line
+                }
+                let text = block.join("\n");
+                let constant = FESTWERT::parse_with_context(&text, Some(&file_path), block_start)
+                    .expect("Failed to parse TEXTSTRING");
+                blocks
+                    .entry(constant.name.clone())
+                    .and_modify(|_| warn!("[{}:{}] Duplicate constant name: {}", file_path, block_start, constant.name))
+                    .or_insert(Block::Constant(constant));
+            } else if all_lines[idx].starts_with("GRUPPENKENNLINIE ") {
                 // one dimensional table
-                loop {
-                    block.push(line.unwrap());
-                    line = lines.next();
-                    if line.is_none() || line.as_ref().unwrap().starts_with("END") {
-                        let table = block.join("\n").parse::<GRUPPENKENNLINIE>().unwrap();
-                        blocks
-                            .entry(table.name.clone())
-                            .and_modify(|_| warn!("Duplicate table name: {}", table.name))
-                            .or_insert(Block::Table(table));
-                        break;
-                    }
+                block.push(all_lines[idx].clone());
+                idx += 1;
+                while idx < all_lines.len() && !all_lines[idx].trim_start().starts_with("END") {
+                    block.push(all_lines[idx].clone());
+                    idx += 1;
                 }
-            } else if line
-                .as_ref()
-                .unwrap()
-                .starts_with("STUETZSTELLENVERTEILUNG ")
-            {
+                if idx < all_lines.len() {
+                    idx += 1; // skip END line
+                }
+                let text = block.join("\n");
+                let table = GRUPPENKENNLINIE::parse_with_context(&text, Some(&file_path), block_start)
+                    .expect("Failed to parse GRUPPENKENNLINIE");
+                blocks
+                    .entry(table.name.clone())
+                    .and_modify(|_| warn!("[{}:{}] Duplicate table name: {}", file_path, block_start, table.name))
+                    .or_insert(Block::Table(table));
+            } else if all_lines[idx].starts_with("STUETZSTELLENVERTEILUNG ") {
                 // distribution axis
-                loop {
-                    block.push(line.unwrap());
-                    line = lines.next();
-                    if line.is_none() || line.as_ref().unwrap().starts_with("END") {
-                        let distribution =
-                            block.join("\n").parse::<STUETZSTELLENVERTEILUNG>().unwrap();
-                        blocks
-                            .entry(distribution.name.clone())
-                            .and_modify(|_| {
-                                warn!("Duplicate distribution name: {}", distribution.name)
-                            })
-                            .or_insert(Block::Distribution(distribution));
-                        break;
-                    }
+                block.push(all_lines[idx].clone());
+                idx += 1;
+                while idx < all_lines.len() && !all_lines[idx].trim_start().starts_with("END") {
+                    block.push(all_lines[idx].clone());
+                    idx += 1;
                 }
-            } else if line.as_ref().unwrap().starts_with("GRUPPENKENNFELD ") {
-                loop {
-                    block.push(line.unwrap());
-                    line = lines.next();
-                    if line.is_none() || line.as_ref().unwrap().starts_with("END") {
-                        let map = block.join("\n").parse::<GRUPPENKENNFELD>().unwrap();
-                        blocks
-                            .entry(map.name.clone())
-                            .and_modify(|_| warn!("Duplicate map name: {}", map.name))
-                            .or_insert(Block::Map(map));
-                        break;
-                    }
+                if idx < all_lines.len() {
+                    idx += 1; // skip END line
                 }
-            } else if line.as_ref().unwrap().starts_with("FESTWERTEBLOCK ") {
-                loop {
-                    block.push(line.unwrap());
-                    line = lines.next();
-                    if line.is_none() || line.as_ref().unwrap().starts_with("END") {
-                        let fbl = block.join("\n").parse::<FESTWERTEBLOCK>().unwrap();
-                        blocks
-                            .entry(fbl.name.clone())
-                            .and_modify(|_| warn!("Duplicate map name: {}", fbl.name))
-                            .or_insert(Block::ConstantBlock(fbl));
-                        break;
-                    }
+                let text = block.join("\n");
+                let distribution =
+                    STUETZSTELLENVERTEILUNG::parse_with_context(&text, Some(&file_path), block_start)
+                        .expect("Failed to parse STUETZSTELLENVERTEILUNG");
+                blocks
+                    .entry(distribution.name.clone())
+                    .and_modify(|_| {
+                        warn!("[{}:{}] Duplicate distribution name: {}", file_path, block_start, distribution.name)
+                    })
+                    .or_insert(Block::Distribution(distribution));
+            } else if all_lines[idx].starts_with("GRUPPENKENNFELD ") {
+                block.push(all_lines[idx].clone());
+                idx += 1;
+                while idx < all_lines.len() && !all_lines[idx].trim_start().starts_with("END") {
+                    block.push(all_lines[idx].clone());
+                    idx += 1;
                 }
+                if idx < all_lines.len() {
+                    idx += 1; // skip END line
+                }
+                let text = block.join("\n");
+                let map = GRUPPENKENNFELD::parse_with_context(&text, Some(&file_path), block_start)
+                    .expect("Failed to parse GRUPPENKENNFELD");
+                blocks
+                    .entry(map.name.clone())
+                    .and_modify(|_| warn!("[{}:{}] Duplicate map name: {}", file_path, block_start, map.name))
+                    .or_insert(Block::Map(map));
+            } else if all_lines[idx].starts_with("FESTWERTEBLOCK ") {
+                block.push(all_lines[idx].clone());
+                idx += 1;
+                while idx < all_lines.len() && !all_lines[idx].trim_start().starts_with("END") {
+                    block.push(all_lines[idx].clone());
+                    idx += 1;
+                }
+                if idx < all_lines.len() {
+                    idx += 1; // skip END line
+                }
+                let text = block.join("\n");
+                let fbl = FESTWERTEBLOCK::parse_with_context(&text, Some(&file_path), block_start)
+                    .expect("Failed to parse FESTWERTEBLOCK");
+                blocks
+                    .entry(fbl.name.clone())
+                    .and_modify(|_| warn!("[{}:{}] Duplicate map name: {}", file_path, block_start, fbl.name))
+                    .or_insert(Block::ConstantBlock(fbl));
             } else {
-                line = lines.next();
+                idx += 1; // skip unrecognized line
             }
         }
-        DcmData { blocks }
+        DcmData { blocks, source_path }
     }
 
     pub fn get_all_variable_names(&self) -> Vec<String> {
@@ -282,6 +306,10 @@ pub fn update_dcm_data(main: &mut DcmData, others: Vec<DcmData>) {
     }
 }
 
+fn sanitize_desc(raw: &str) -> String {
+    raw.replace('\r', "").replace('\n', "")
+}
+
 pub fn write_dcm_data(data: &DcmData, file: &Path) {
     /* handlebars template  */
     let mut reg = Handlebars::new();
@@ -303,14 +331,14 @@ pub fn write_dcm_data(data: &DcmData, file: &Path) {
                     textstrings.push(json!({
                         "name": key,
                         "value": c.value,
-                        "desc": blk.get_desc().unwrap_or("".to_string()),
+                        "desc": sanitize_desc(&blk.get_desc().unwrap_or_default()),
                         "unit": blk.get_w_unit().unwrap_or("unitless".to_string()),
                     }))
                 } else {
                     constants.push(json!({
                         "name": key,
                         "value": c.value,
-                        "desc": blk.get_desc().unwrap_or("".to_string()),
+                        "desc": sanitize_desc(&blk.get_desc().unwrap_or_default()),
                         "unit": blk.get_w_unit().unwrap_or("unitless".to_string()),
                     }))
                 }
@@ -318,7 +346,7 @@ pub fn write_dcm_data(data: &DcmData, file: &Path) {
             Block::ConstantBlock(c) => constant_blocks.push(json!( {
                 "name": key,
                 "value": c.value,
-                "desc": blk.get_desc().unwrap_or("".to_string()),
+                "desc": sanitize_desc(&blk.get_desc().unwrap_or_default()),
                 "unit": blk.get_w_unit().unwrap_or("unitless".to_string()),
                 "dim": c.dim,
             })),
@@ -327,7 +355,7 @@ pub fn write_dcm_data(data: &DcmData, file: &Path) {
                 table_blocks.push(json!( {
                     "name": key.clone(),
                     "value": t.value,
-                    "desc": blk.get_desc().unwrap_or("".to_string()),
+                    "desc": sanitize_desc(&blk.get_desc().unwrap_or_default()),
                     "unit_w": blk.get_w_unit().unwrap_or("na".to_string()),
                     "dim": dim,
                     "axis": t.axis.clone(),
@@ -338,7 +366,7 @@ pub fn write_dcm_data(data: &DcmData, file: &Path) {
             Block::Distribution(d) => axis.push(json!({
                 "name": key,
                 "value": d.value.try_into_f64().unwrap_or(&vec![0f64]).clone(),
-                "desc": blk.get_desc().unwrap_or("".to_string()),
+                "desc": sanitize_desc(&blk.get_desc().unwrap_or_default()),
                 "unit": blk.get_x_unit().unwrap_or("na".to_string()),
                 "dim": d.dim,
             })),
@@ -353,7 +381,7 @@ pub fn write_dcm_data(data: &DcmData, file: &Path) {
                 maps.push(json!({
                     "name": key,
                     "value_block": value_block,
-                    "desc": blk.get_desc().unwrap_or("".to_string()),
+                    "desc": sanitize_desc(&blk.get_desc().unwrap_or_default()),
                     "unit_x": blk.get_x_unit().unwrap_or("na".to_string()),
                     "unit_y": blk.get_y_unit().unwrap_or("na".to_string()),
                     "unit_w": blk.get_w_unit().unwrap_or("na".to_string()),
@@ -421,7 +449,7 @@ mod tests {
         let festwert = FESTWERT::from_f64(name.clone(), value, desc, unit);
         let mut blocks = IndexMap::new();
         blocks.insert(name, Block::Constant(festwert));
-        let dcm_data = DcmData { blocks };
+        let dcm_data = DcmData { blocks, source_path: None };
         let path = Path::new("./output/festwert.DCM");
         write_dcm_data(&dcm_data, path);
     }

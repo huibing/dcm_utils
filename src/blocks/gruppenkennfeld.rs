@@ -18,12 +18,18 @@ pub struct GRUPPENKENNFELD {
     pub dim: (usize, usize),
     pub x_axis: Vec<f64>,
     pub y_axis: Vec<f64>,
+    #[serde(skip)]
+    pub source_path: Option<String>,
+    #[serde(skip)]
+    pub source_line: usize,
 }
 
-impl FromStr for GRUPPENKENNFELD {
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+impl GRUPPENKENNFELD {
+    pub fn parse_with_context(
+        s: &str,
+        source_path: Option<&str>,
+        source_line: usize,
+    ) -> Result<Self, &'static str> {
         let mut lines = s.lines();
         let mut value_holder: Value = Value::new();
         let mut attrs: Vec<StringAttr> = Vec::new();
@@ -52,7 +58,8 @@ impl FromStr for GRUPPENKENNFELD {
             .parse::<usize>()
             .map_err(|_| "nrow is not a number")?;
         let dim = (ncol, nrow);
-        for line in lines {
+        for (i, line) in lines.enumerate() {
+            let abs_line = source_line + i + 1;
             match line.parse::<Attr>() {
                 Ok(Attr::StringAttr(s)) => attrs.push(s),
                 Ok(Attr::ValueAttr(v)) => {
@@ -73,11 +80,19 @@ impl FromStr for GRUPPENKENNFELD {
                     } else if a.axistype == AxisType::Y {
                         y_axis_name = a.identifier;
                     } else {
-                        warn!("unknown axis attr: {}", a.identifier);
+                        if let Some(path) = source_path {
+                            warn!("[{}:{}] unknown axis attr: {}", path, abs_line, a.identifier);
+                        } else {
+                            warn!("unknown axis attr: {}", a.identifier);
+                        }
                     }
                 }
                 Err(e) => {
-                    warn!("error parsing line: {}", e);
+                    if let Some(path) = source_path {
+                        warn!("[{}:{}] error parsing line: {}", path, abs_line, e);
+                    } else {
+                        warn!("error parsing line: {}", e);
+                    }
                     break;
                 }
             }
@@ -97,7 +112,17 @@ impl FromStr for GRUPPENKENNFELD {
             y_axis_name,
             attrs,
             value_flat,
+            source_path: source_path.map(String::from),
+            source_line,
         })
+    }
+}
+
+impl FromStr for GRUPPENKENNFELD {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::parse_with_context(s, None, 0)
     }
 }
 
@@ -133,6 +158,8 @@ impl GRUPPENKENNFELD {
             y_axis_name: y_axis_name.to_string(),
             attrs,
             value_flat,
+            source_path: None,
+            source_line: 0,
         }
     }
 
@@ -167,6 +194,8 @@ impl GRUPPENKENNFELD {
             y_axis_name,
             attrs,
             value_flat,
+            source_path: None,
+            source_line: 0,
         }
     }
 

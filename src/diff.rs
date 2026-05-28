@@ -59,14 +59,15 @@ pub fn validate_and_build_sources(
     }
 
     let mut sources = Vec::new();
-    for path in dcm {
-        sources.push(CalSource::Dcm(path.clone()));
-    }
+    // A2L+HEX first (reference/original from ECU flash), then DCM (candidate)
     for (a, h) in a2l.iter().zip(hex.iter()) {
         sources.push(CalSource::A2lHex {
             a2l: a.clone(),
             hex: h.clone(),
         });
+    }
+    for path in dcm {
+        sources.push(CalSource::Dcm(path.clone()));
     }
     let right = sources.pop().unwrap();
     let left = sources.pop().unwrap();
@@ -515,9 +516,9 @@ mod tests {
         let a2l = vec![PathBuf::from("cal.a2l")];
         let hex = vec![PathBuf::from("flash.hex")];
         let (left, right) = validate_and_build_sources(&dcm, &a2l, &hex).unwrap();
-        // DCM entries come first
-        assert!(matches!(left, CalSource::Dcm(_)));
-        assert!(matches!(right, CalSource::A2lHex { .. }));
+        // A2L+HEX (ECU reference) comes first as left/old, DCM as right/new
+        assert!(matches!(left, CalSource::A2lHex { .. }));
+        assert!(matches!(right, CalSource::Dcm(_)));
     }
 
     #[test]
@@ -587,7 +588,7 @@ mod tests {
         );
         let mut blocks = IndexMap::new();
         blocks.insert(name.to_string(), Block::Constant(festwert));
-        DcmData { blocks }
+        DcmData { blocks, source_path: None }
     }
 
     #[test]
@@ -623,6 +624,7 @@ mod tests {
         right_blocks.insert("param1".to_string(), Block::Constant(c));
         let right = DcmData {
             blocks: right_blocks,
+            source_path: None,
         };
 
         // Exact: 1 change
