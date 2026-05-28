@@ -121,6 +121,9 @@ enum Commands {
         /// Output JSON file for diff results
         #[arg(short, long, default_value = "diff.json")]
         output: PathBuf,
+        /// Use approximate comparison for floating-point values (relative tolerance 1e-8)
+        #[arg(long, default_value_t = false)]
+        approx: bool,
     },
     /// Generate DCM file from A2L and HEX calibration files
     ///
@@ -209,6 +212,7 @@ fn main() {
             a2l,
             hex,
             output,
+            approx,
         } => {
             let (left_src, right_src) = validate_and_build_sources(&dcm, &a2l, &hex)
                 .unwrap_or_else(|e| {
@@ -225,7 +229,7 @@ fn main() {
                 std::process::exit(1);
             });
 
-            let result = dcm_diff_with_metadata(&left_data, &right_data, &left_src, &right_src, false);
+            let result = dcm_diff_with_metadata(&left_data, &right_data, &left_src, &right_src, approx);
 
             // Print summary
             println!("{}", "=== Calibration Diff Results ===".bold());
