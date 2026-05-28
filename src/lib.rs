@@ -3,6 +3,7 @@ pub mod block;
 pub mod blocks;
 pub mod diff;
 pub mod gen;
+pub mod serve;
 pub mod value;
 
 pub use diff::{

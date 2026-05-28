@@ -2,8 +2,8 @@ use chrono::Local;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 use dcm_utils::{
-    dcm_diff_with_metadata, gen, merge_dcm_data, update_dcm_data, validate_and_build_sources,
-    DcmData, DcmDiff,
+    dcm_diff_with_metadata, gen, merge_dcm_data, serve, update_dcm_data,
+    validate_and_build_sources, DcmData, DcmDiff,
 };
 use env_logger::Builder;
 use std::io::Write;
@@ -124,6 +124,9 @@ enum Commands {
         /// Use approximate comparison for floating-point values (relative tolerance 1e-8)
         #[arg(long, default_value_t = false)]
         approx: bool,
+        /// Serve diff results as a web page
+        #[arg(long, default_value_t = false)]
+        web: bool,
     },
     /// Generate DCM file from A2L and HEX calibration files
     ///
@@ -213,6 +216,7 @@ fn main() {
             hex,
             output,
             approx,
+            web,
         } => {
             let (left_src, right_src) = validate_and_build_sources(&dcm, &a2l, &hex)
                 .unwrap_or_else(|e| {
@@ -310,6 +314,14 @@ fn main() {
                 "Diff details written to: {}",
                 output.display().to_string().blue()
             );
+
+            if web {
+                println!();
+                serve::start(result, approx).unwrap_or_else(|e| {
+                    eprintln!("Server error: {}", e);
+                    std::process::exit(1);
+                });
+            }
         }
         Commands::Gen { a2l, hex, output } => {
             let dcm_data = gen::gen_dcm_data(&a2l, &hex).expect("Failed to generate DCM data");
