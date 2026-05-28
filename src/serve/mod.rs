@@ -120,6 +120,21 @@ async fn export_changed(State(state): State<AppState>) -> Response {
     })
 }
 
+/// Escape a field value for CSV per RFC 4180, with formula injection prevention.
+fn csv_escape_field(s: &str) -> String {
+    // Prevent formula injection in Excel/Sheets
+    let sanitized = if s.starts_with(['=', '+', '-', '@']) {
+        format!("'{}", s)
+    } else {
+        s.to_string()
+    };
+    if sanitized.contains(',') || sanitized.contains('"') || sanitized.contains('\n') {
+        format!("\"{}\"", sanitized.replace('"', "\"\""))
+    } else {
+        sanitized
+    }
+}
+
 fn csv_response(
     filename: &str,
     diffs: &[DcmDiff],
@@ -133,7 +148,7 @@ fn csv_response(
             | DcmDiff::Changed { name, .. }
             | DcmDiff::ChangedMap { name, .. } => name,
         };
-        csv.push_str(name);
+        csv.push_str(&csv_escape_field(name));
         csv.push('\n');
     }
 
