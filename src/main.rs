@@ -229,7 +229,8 @@ fn main() {
                 std::process::exit(1);
             });
 
-            let result = dcm_diff_with_metadata(&left_data, &right_data, &left_src, &right_src, approx);
+            let result =
+                dcm_diff_with_metadata(&left_data, &right_data, &left_src, &right_src, approx);
 
             // Print summary
             println!("{}", "=== Calibration Diff Results ===".bold());

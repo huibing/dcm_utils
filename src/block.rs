@@ -131,26 +131,51 @@ mod tests {
     #[rstest]
     fn test_block_partial_eq_map_checks_axis_names() {
         let map1 = GRUPPENKENNFELD::from_f64(
-            "test_map", vec![vec![1.0, 2.0], vec![3.0, 4.0]],
-            vec![1.0, 2.0], vec![0.0, 1.0],
-            "axis_x_v1", "axis_y_v1",
-            "desc", "unit_w", "unit_x", "unit_y",
+            "test_map",
+            vec![vec![1.0, 2.0], vec![3.0, 4.0]],
+            vec![1.0, 2.0],
+            vec![0.0, 1.0],
+            "axis_x_v1",
+            "axis_y_v1",
+            "desc",
+            "unit_w",
+            "unit_x",
+            "unit_y",
         );
         let map2 = GRUPPENKENNFELD::from_f64(
-            "test_map", vec![vec![1.0, 2.0], vec![3.0, 4.0]],
-            vec![1.0, 2.0], vec![0.0, 1.0],
-            "axis_x_v1", "axis_y_v2",
-            "desc", "unit_w", "unit_x", "unit_y",
+            "test_map",
+            vec![vec![1.0, 2.0], vec![3.0, 4.0]],
+            vec![1.0, 2.0],
+            vec![0.0, 1.0],
+            "axis_x_v1",
+            "axis_y_v2",
+            "desc",
+            "unit_w",
+            "unit_x",
+            "unit_y",
         );
         let b1 = Block::Map(map1);
         let b2 = Block::Map(map2);
-        assert_ne!(b1, b2, "Block::PartialEq should detect different y_axis_name");
+        assert_ne!(
+            b1, b2,
+            "Block::PartialEq should detect different y_axis_name"
+        );
     }
 
     #[rstest]
     fn test_block_approx_eq_constant() {
-        let c1 = FESTWERT::from_f64("test".to_string(), 1.0, "desc".to_string(), "unit".to_string());
-        let c2 = FESTWERT::from_f64("test".to_string(), 1.0 + 1e-9, "desc".to_string(), "unit".to_string());
+        let c1 = FESTWERT::from_f64(
+            "test".to_string(),
+            1.0,
+            "desc".to_string(),
+            "unit".to_string(),
+        );
+        let c2 = FESTWERT::from_f64(
+            "test".to_string(),
+            1.0 + 1e-9,
+            "desc".to_string(),
+            "unit".to_string(),
+        );
         let b1 = Block::Constant(c1);
         let b2 = Block::Constant(c2);
         assert!(b1.approx_eq(&b2));
@@ -159,8 +184,18 @@ mod tests {
 
     #[rstest]
     fn test_block_approx_eq_constant_block() {
-        let cb1 = FESTWERTEBLOCK::from_f64("test_cb".to_string(), vec![1.0, 2.0, 3.0], "desc".to_string(), "unit".to_string());
-        let cb2 = FESTWERTEBLOCK::from_f64("test_cb".to_string(), vec![1.0 + 1e-9, 2.0, 3.0], "desc".to_string(), "unit".to_string());
+        let cb1 = FESTWERTEBLOCK::from_f64(
+            "test_cb".to_string(),
+            vec![1.0, 2.0, 3.0],
+            "desc".to_string(),
+            "unit".to_string(),
+        );
+        let cb2 = FESTWERTEBLOCK::from_f64(
+            "test_cb".to_string(),
+            vec![1.0 + 1e-9, 2.0, 3.0],
+            "desc".to_string(),
+            "unit".to_string(),
+        );
         let b1 = Block::ConstantBlock(cb1);
         let b2 = Block::ConstantBlock(cb2);
         assert!(b1.approx_eq(&b2));
@@ -170,14 +205,22 @@ mod tests {
     #[rstest]
     fn test_block_approx_eq_table() {
         let t1 = GRUPPENKENNLINIE::from_f64(
-            "test_tbl", &[1.0, 2.0, 3.0],
-            "desc", "unit_w", "unit_x",
-            "axis_x", &[0.0, 10.0, 20.0],
+            "test_tbl",
+            &[1.0, 2.0, 3.0],
+            "desc",
+            "unit_w",
+            "unit_x",
+            "axis_x",
+            &[0.0, 10.0, 20.0],
         );
         let t2 = GRUPPENKENNLINIE::from_f64(
-            "test_tbl", &[1.0 + 1e-9, 2.0, 3.0],
-            "desc", "unit_w", "unit_x",
-            "axis_x", &[0.0, 10.0 + 1e-9, 20.0],
+            "test_tbl",
+            &[1.0 + 1e-9, 2.0, 3.0],
+            "desc",
+            "unit_w",
+            "unit_x",
+            "axis_x",
+            &[0.0, 10.0 + 1e-9, 20.0],
         );
         let b1 = Block::Table(t1);
         let b2 = Block::Table(t2);
@@ -188,7 +231,12 @@ mod tests {
     #[rstest]
     fn test_block_approx_eq_distribution() {
         let d1 = STUETZSTELLENVERTEILUNG::from_f64("test_dist", "desc", &[0.0, 10.0, 20.0], "unit");
-        let d2 = STUETZSTELLENVERTEILUNG::from_f64("test_dist", "desc", &[0.0, 10.0 + 1e-9, 20.0], "unit");
+        let d2 = STUETZSTELLENVERTEILUNG::from_f64(
+            "test_dist",
+            "desc",
+            &[0.0, 10.0 + 1e-9, 20.0],
+            "unit",
+        );
         let b1 = Block::Distribution(d1);
         let b2 = Block::Distribution(d2);
         assert!(b1.approx_eq(&b2));
@@ -198,16 +246,28 @@ mod tests {
     #[rstest]
     fn test_block_approx_eq_map() {
         let map1 = GRUPPENKENNFELD::from_f64(
-            "test_map", vec![vec![1.0, 2.0], vec![3.0, 4.0]],
-            vec![1.0, 2.0], vec![0.0, 1.0],
-            "axis_x", "axis_y",
-            "desc", "unit_w", "unit_x", "unit_y",
+            "test_map",
+            vec![vec![1.0, 2.0], vec![3.0, 4.0]],
+            vec![1.0, 2.0],
+            vec![0.0, 1.0],
+            "axis_x",
+            "axis_y",
+            "desc",
+            "unit_w",
+            "unit_x",
+            "unit_y",
         );
         let map2 = GRUPPENKENNFELD::from_f64(
-            "test_map", vec![vec![1.0 + 1e-9, 2.0], vec![3.0, 4.0]],
-            vec![1.0, 2.0], vec![0.0, 1.0],
-            "axis_x", "axis_y",
-            "desc", "unit_w", "unit_x", "unit_y",
+            "test_map",
+            vec![vec![1.0 + 1e-9, 2.0], vec![3.0, 4.0]],
+            vec![1.0, 2.0],
+            vec![0.0, 1.0],
+            "axis_x",
+            "axis_y",
+            "desc",
+            "unit_w",
+            "unit_x",
+            "unit_y",
         );
         let b1 = Block::Map(map1);
         let b2 = Block::Map(map2);
