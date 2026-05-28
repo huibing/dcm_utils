@@ -38,8 +38,8 @@ fn dcm_vector_writer(
     let vector = h.param(1).unwrap().value();
     if let serde_json::Value::Array(arr) = vector {
         out.write("   ")?;
-        let line_num = arr.len() / 6;
-        let multi_line = arr.len() > 6;
+        let num_lines = (arr.len() + 5) / 6;
+        let multi_line = num_lines > 1;
         let text_flag = arr.iter().all(|x| x.is_string());
         let identifier = if text_flag && vector_type.as_str() == "WERT" {
             "TEXT" // convient solution for text values
@@ -59,7 +59,7 @@ fn dcm_vector_writer(
                 }
                 out.write("   ")?;
             }
-            if multi_line && line_num >= 1 && index < line_num {
+            if multi_line && index < num_lines - 1 {
                 out.write("\r\n   ")?;
             }
         }
