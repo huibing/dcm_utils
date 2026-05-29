@@ -38,23 +38,37 @@ fn build_change_detail(
     old: &crate::value::Value,
     new: &crate::value::Value,
     block_type: &str,
+    old_axis: Option<&[f64]>,
+    new_axis: Option<&[f64]>,
 ) -> serde_json::Value {
     match (old, new) {
         (crate::value::Value::WERT(old_vals), crate::value::Value::WERT(new_vals)) => {
-            let kind = if old_vals.len() <= 1 { "scalar" } else { "multi" };
-            serde_json::json!({
+            let kind = if old_axis.is_some() {
+                "curve"
+            } else if old_vals.len() <= 1 {
+                "scalar"
+            } else {
+                "multi"
+            };
+            let mut detail = serde_json::json!({
                 "kind": kind,
                 "block_type": block_type,
                 "old_values": old_vals,
                 "new_values": new_vals,
-            })
+            });
+            if let (Some(oa), Some(na)) = (old_axis, new_axis) {
+                detail["old_axis"] = serde_json::json!(oa);
+                detail["new_axis"] = serde_json::json!(na);
+            }
+            detail
         }
-        (crate::value::Value::TEXT(old_text), crate::value::Value::TEXT(new_text)) => {
+        (crate::value::Value::TEXT(old_texts), crate::value::Value::TEXT(new_texts)) => {
+            let kind = if old_texts.len() <= 1 { "scalar" } else { "multi" };
             serde_json::json!({
-                "kind": "text",
+                "kind": kind,
                 "block_type": block_type,
-                "old_text": old_text,
-                "new_text": new_text,
+                "old_values": old_texts,
+                "new_values": new_texts,
             })
         }
         _ => {
@@ -127,10 +141,10 @@ async fn index(State(state): State<AppState>) -> Result<Response, AppError> {
                 }));
                 deleted_idx += 1;
             }
-            DcmDiff::Changed { name, old, new, description } => {
+            DcmDiff::Changed { name, old, new, description, old_axis, new_axis } => {
                 let desc = description.as_deref().unwrap_or("");
                 let btype = block_type_from_desc(desc);
-                change_details.insert(name.clone(), build_change_detail(old, new, btype));
+                change_details.insert(name.clone(), build_change_detail(old, new, btype, old_axis.as_deref(), new_axis.as_deref()));
                 changed_items.push(serde_json::json!({
                     "index": changed_idx,
                     "name": name,
@@ -348,6 +362,8 @@ mod tests {
                     old: crate::value::Value::WERT(vec![1.0]),
                     new: crate::value::Value::WERT(vec![2.0]),
                     description: Some("FESTWERT 'CHG_VAR' value changed".into()),
+                    old_axis: None,
+                    new_axis: None,
                 },
             ],
         }
@@ -387,6 +403,44 @@ mod tests {
             ),
             "GRUPPENKENNFELD"
         );
+    }
+
+    // -- Unit tests for build_change_detail --
+
+    #[test]
+    fn test_build_change_detail_text_single() {
+        let old = crate::value::Value::TEXT(vec!["SprgLvlEnum_None".into()]);
+        let new = crate::value::Value::TEXT(vec!["SprgLvlEnum_Auto".into()]);
+        let detail = build_change_detail(&old, &new, "FESTWERT", None, None);
+        assert_eq!(detail["kind"], "scalar");
+        assert_eq!(detail["old_values"][0], "SprgLvlEnum_None");
+        assert_eq!(detail["new_values"][0], "SprgLvlEnum_Auto");
+    }
+
+    #[test]
+    fn test_build_change_detail_text_multi() {
+        let old = crate::value::Value::TEXT(vec!["a".into(), "b".into(), "c".into()]);
+        let new = crate::value::Value::TEXT(vec!["a".into(), "x".into(), "c".into()]);
+        let detail = build_change_detail(&old, &new, "FESTWERTEBLOCK", None, None);
+        assert_eq!(detail["kind"], "multi");
+        assert_eq!(detail["old_values"].as_array().unwrap().len(), 3);
+        assert_eq!(detail["new_values"].as_array().unwrap().len(), 3);
+    }
+
+    #[test]
+    fn test_build_change_detail_wert_scalar() {
+        let old = crate::value::Value::WERT(vec![1.0]);
+        let new = crate::value::Value::WERT(vec![2.0]);
+        let detail = build_change_detail(&old, &new, "FESTWERT", None, None);
+        assert_eq!(detail["kind"], "scalar");
+    }
+
+    #[test]
+    fn test_build_change_detail_wert_multi() {
+        let old = crate::value::Value::WERT(vec![1.0, 2.0, 3.0]);
+        let new = crate::value::Value::WERT(vec![1.0, 4.0, 3.0]);
+        let detail = build_change_detail(&old, &new, "FESTWERTEBLOCK", None, None);
+        assert_eq!(detail["kind"], "multi");
     }
 
     // -- HTTP integration tests using axum Router::oneshot --

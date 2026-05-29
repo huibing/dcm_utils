@@ -247,20 +247,26 @@
     modal.classList.remove('show');
   }
 
-  // Number formatting: up to 6 decimals, strip trailing zeros
+  function isStr(v) { return typeof v === 'string' || v instanceof String; }
+
+  // Format a value for display
   function fmt(n) {
+    if (isStr(n)) return n;
     if (typeof n !== 'number') return String(n);
     return parseFloat(n.toFixed(6)).toString();
   }
 
   // Escape HTML entities
   function esc(s) {
+    if (Array.isArray(s)) s = s.join(', ');
+    if (typeof s !== 'string') s = String(s);
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
   // Compare two values: return 'same' or 'diff'
   function cmp(a, b) {
-    if (approx) {
+    if (isStr(a) && isStr(b)) return a === b ? 'same' : 'diff';
+    if (approx && typeof a === 'number' && typeof b === 'number') {
       var denom = Math.max(Math.abs(a), Math.abs(b), 1e-12);
       return Math.abs(a - b) / denom < 1e-8 ? 'same' : 'diff';
     }
@@ -272,10 +278,45 @@
     switch (d.kind) {
       case 'scalar': return renderScalar(d);
       case 'multi':  return renderMulti(d);
+      case 'curve':  return renderCurve(d);
       case 'map':    return renderMap(d);
-      case 'text':   return renderText(d);
+      case 'mixed':  return '<p style="padding:20px;color:#8b949e;">The value type changed between versions — detailed comparison is not available.</p>';
       default:       return '<p style="padding:20px;color:#8b949e;">No detailed comparison data available.</p>';
     }
+  }
+
+  // Compute element-by-element diff of two arrays
+  function diffArrays(oldArr, newArr) {
+    var result = [];
+    var len = Math.max(oldArr.length, newArr.length);
+    for (var i = 0; i < len; i++) {
+      var o = oldArr[i], n = newArr[i];
+      if (o === undefined) result.push({idx: i, old: undefined, new: n, cls: 'diff', missing: 'old'});
+      else if (n === undefined) result.push({idx: i, old: o, new: undefined, cls: 'diff', missing: 'new'});
+      else result.push({idx: i, old: o, new: n, cls: cmp(o, n)});
+    }
+    return result;
+  }
+
+  // Render a compact axis comparison table; returns empty string if unchanged
+  function renderAxisTable(label, oldAxis, newAxis) {
+    var rows = diffArrays(oldAxis, newAxis);
+    var unchanged = rows.every(function(r) { return r.cls === 'same'; });
+    if (unchanged) return '';
+    var h = '<div class="cmp-section-label">' + label + ' (changed)</div>';
+    h += '<table class="cmp-table" style="margin-bottom:12px;"><tr><th>#</th><th>Old</th><th>New</th></tr>';
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      if (r.missing === 'old') {
+        h += '<tr><td class="cmp-label">' + (i+1) + '</td><td class="missing">&mdash;</td><td class="diff">' + fmt(r.new) + '</td></tr>';
+      } else if (r.missing === 'new') {
+        h += '<tr><td class="cmp-label">' + (i+1) + '</td><td class="diff">' + fmt(r.old) + '</td><td class="missing">&mdash;</td></tr>';
+      } else {
+        h += '<tr><td class="cmp-label">' + (i+1) + '</td><td class="' + r.cls + '">' + fmt(r.old) + '</td><td class="' + r.cls + '">' + fmt(r.new) + '</td></tr>';
+      }
+    }
+    h += '</table>';
+    return h;
   }
 
   function renderScalar(d) {
@@ -305,18 +346,39 @@
     return h;
   }
 
+  function renderCurve(d) {
+    var h = '';
+    if (d.old_axis && d.new_axis) {
+      h += renderAxisTable('Axis Points', d.old_axis, d.new_axis);
+    }
+    h += '<div class="cmp-section-label">Data Values</div>';
+    h += renderMulti(d);
+    return h;
+  }
+
   function renderMap(d) {
-    var h = '<div class="cmp-section-label">Dimensions: ' + d.dim_x + ' × ' + d.dim_y + '</div>';
+    var h = '';
+
+    // Show axis comparisons when axes differ
+    if (d.old_x_axis && d.new_x_axis) {
+      h += renderAxisTable('X-Axis (' + esc(d.x_axis_name) + ')', d.old_x_axis, d.new_x_axis);
+    }
+    if (d.old_y_axis && d.new_y_axis) {
+      h += renderAxisTable('Y-Axis (' + esc(d.y_axis_name) + ')', d.old_y_axis, d.new_y_axis);
+    }
+
+    h += '<div class="cmp-section-label">Map Data (' + d.dim_x + ' × ' + d.dim_y + ')</div>';
     h += '<div class="map-grid-wrapper"><table class="cmp-table map-grid">';
-    // Header: X axis values
+    // Header: old X axis values
     h += '<tr><th></th>';
     for (var x = 0; x < d.dim_x; x++) {
-      h += '<th class="axis-label">' + (d.old_x_axis[x] !== undefined ? fmt(d.old_x_axis[x]) : '—') + '</th>';
+      h += '<th class="axis-label">' + (d.old_x_axis && d.old_x_axis[x] !== undefined ? fmt(d.old_x_axis[x]) : '—') + '</th>';
     }
     h += '</tr>';
-    // Data rows
+    // Data rows (row-major: old dims define grid shape)
     for (var y = 0; y < d.dim_y; y++) {
-      h += '<tr><th class="axis-label">' + (d.old_y_axis[y] !== undefined ? fmt(d.old_y_axis[y]) : '—') + '</th>';
+      var yLabel = d.old_y_axis && d.old_y_axis[y] !== undefined ? fmt(d.old_y_axis[y]) : '—';
+      h += '<tr><th class="axis-label">' + yLabel + '</th>';
       for (var x = 0; x < d.dim_x; x++) {
         var idx = y * d.dim_x + x;
         var o = d.old_values[idx], n = d.new_values[idx];
@@ -338,13 +400,6 @@
     return h;
   }
 
-  function renderText(d) {
-    var cls = d.old_text !== d.new_text ? 'diff' : 'same';
-    return '<table class="cmp-table"><tr><th></th><th>Old</th><th>New</th></tr>' +
-      '<tr><td class="cmp-label">Txt</td>' +
-      '<td class="' + cls + '">' + esc(d.old_text) + '</td>' +
-      '<td class="' + cls + '">' + esc(d.new_text) + '</td></tr></table>';
-  }
 })();
 </script>
 {{/if}}

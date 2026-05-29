@@ -247,6 +247,10 @@ pub enum DcmDiff {
         new: Value,
         #[serde(skip_serializing_if = "Option::is_none")]
         description: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        old_axis: Option<Vec<f64>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        new_axis: Option<Vec<f64>>,
     },
     ChangedMap {
         name: String,
@@ -318,12 +322,24 @@ fn dcm_diff_with_details(
                                 description: Some(description),
                             });
                         }
+                        (Block::Table(left_tbl), Block::Table(right_tbl)) => {
+                            diff.push(DcmDiff::Changed {
+                                name: name.clone(),
+                                old: left_block.get_values().clone(),
+                                new: right_block.get_values().clone(),
+                                description: Some(description),
+                                old_axis: Some(left_tbl.axis.clone()),
+                                new_axis: Some(right_tbl.axis.clone()),
+                            });
+                        }
                         _ => {
                             diff.push(DcmDiff::Changed {
                                 name: name.clone(),
                                 old: left_block.get_values().clone(),
                                 new: right_block.get_values().clone(),
                                 description: Some(description),
+                                old_axis: None,
+                                new_axis: None,
                             });
                         }
                     }
