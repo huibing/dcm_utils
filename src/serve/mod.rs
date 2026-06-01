@@ -89,11 +89,11 @@ fn build_single_value_detail(
     match val {
         crate::value::Value::WERT(vals) => {
             let kind = if axis.is_some() {
-                "multi_with_axis"
+                "single_array"
             } else if vals.len() <= 1 {
-                "scalar"
+                "single"
             } else {
-                "multi"
+                "single_array"
             };
             let mut detail = serde_json::json!({
                 "kind": kind,
@@ -109,7 +109,7 @@ fn build_single_value_detail(
             detail
         }
         crate::value::Value::TEXT(texts) => {
-            let kind = if texts.len() <= 1 { "scalar" } else { "multi" };
+            let kind = if texts.len() <= 1 { "single" } else { "single_array" };
             serde_json::json!({
                 "kind": kind,
                 "block_type": block_type,

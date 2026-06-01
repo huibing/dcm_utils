@@ -432,6 +432,8 @@
     switch (d.kind) {
       case 'scalar': return renderScalar(d);
       case 'multi':  return renderMulti(d);
+      case 'single': return renderSingle(d);
+      case 'single_array': return renderSingleArray(d);
       case 'multi_with_axis': return renderSingleWithAxis(d);
       case 'curve':  return renderCurve(d);
       case 'map':    return renderMap(d);
@@ -501,8 +503,31 @@
     return h;
   }
 
+  // Render a single scalar value
+  function renderSingle(d) {
+    return '<table class="cmp-table"><tr><th></th><th>Value</th></tr>' +
+      '<tr><td class="cmp-label">Val</td><td class="same">' + fmt(d.values[0]) + '</td></tr></table>';
+  }
+
   // Render a single array of values with optional axis
-  function renderSingleWithAxis(d) {
+  function renderSingleArray(d) {
+    var h = '';
+    if (d.axis) {
+      h += '<div class="cmp-section-label">Axis Points (' + esc(d.axis_var_name || '') + ')</div>';
+      h += '<table class="cmp-table" style="margin-bottom:12px;"><tr><th>#</th><th>Value</th></tr>';
+      for (var i = 0; i < d.axis.length; i++) {
+        h += '<tr><td class="cmp-label">' + (i+1) + '</td><td class="same">' + fmt(d.axis[i]) + '</td></tr>';
+      }
+      h += '</table>';
+    }
+    h += '<div class="cmp-section-label">Values</div>';
+    h += '<table class="cmp-table"><tr><th>#</th><th>Value</th></tr>';
+    for (var i = 0; i < d.values.length; i++) {
+      h += '<tr><td class="cmp-label">' + (i+1) + '</td><td class="same">' + fmt(d.values[i]) + '</td></tr>';
+    }
+    h += '</table>';
+    return h;
+  }
     var h = '';
     if (d.axis) {
       h += '<div class="cmp-section-label">Axis Points (' + esc(d.axis_var_name || '') + ')</div>';
