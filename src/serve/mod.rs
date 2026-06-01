@@ -80,6 +80,45 @@ fn build_change_detail(
     }
 }
 
+fn build_single_value_detail(
+    val: &crate::value::Value,
+    block_type: &str,
+    axis: Option<&[f64]>,
+    axis_var_name: Option<&str>,
+) -> serde_json::Value {
+    match val {
+        crate::value::Value::WERT(vals) => {
+            let kind = if axis.is_some() {
+                "multi_with_axis"
+            } else if vals.len() <= 1 {
+                "scalar"
+            } else {
+                "multi"
+            };
+            let mut detail = serde_json::json!({
+                "kind": kind,
+                "block_type": block_type,
+                "values": vals,
+            });
+            if let Some(ax) = axis {
+                detail["axis"] = serde_json::json!(ax);
+            }
+            if let Some(name) = axis_var_name {
+                detail["axis_var_name"] = serde_json::json!(name);
+            }
+            detail
+        }
+        crate::value::Value::TEXT(texts) => {
+            let kind = if texts.len() <= 1 { "scalar" } else { "multi" };
+            serde_json::json!({
+                "kind": kind,
+                "block_type": block_type,
+                "values": texts,
+            })
+        }
+    }
+}
+
 fn build_map_change_detail(detail: &crate::diff::MapChangeDetail) -> serde_json::Value {
     serde_json::json!({
         "kind": "map",
@@ -121,22 +160,26 @@ async fn index(State(state): State<AppState>) -> Result<Response, AppError> {
 
     for diff in &result.differences {
         match diff {
-            DcmDiff::New { name, description } => {
+            DcmDiff::New { name, value, axis, axis_var_name, description } => {
                 let desc = description.as_deref().unwrap_or("");
+                let btype = block_type_from_desc(desc);
+                change_details.insert(name.clone(), build_single_value_detail(value, btype, axis.as_deref(), axis_var_name.as_deref()));
                 new_items.push(serde_json::json!({
                     "index": new_idx,
                     "name": name,
-                    "type": block_type_from_desc(desc),
+                    "type": btype,
                     "description": desc,
                 }));
                 new_idx += 1;
             }
-            DcmDiff::Deleted { name, description } => {
+            DcmDiff::Deleted { name, value, axis, axis_var_name, description } => {
                 let desc = description.as_deref().unwrap_or("");
+                let btype = block_type_from_desc(desc);
+                change_details.insert(name.clone(), build_single_value_detail(value, btype, axis.as_deref(), axis_var_name.as_deref()));
                 deleted_items.push(serde_json::json!({
                     "index": deleted_idx,
                     "name": name,
-                    "type": block_type_from_desc(desc),
+                    "type": btype,
                     "description": desc,
                 }));
                 deleted_idx += 1;
@@ -351,10 +394,16 @@ mod tests {
             differences: vec![
                 DcmDiff::New {
                     name: "NEW_VAR".into(),
+                    value: crate::value::Value::WERT(vec![42.0]),
+                    axis: None,
+                    axis_var_name: None,
                     description: Some("New FESTWERT block 'NEW_VAR'".into()),
                 },
                 DcmDiff::Deleted {
                     name: "OLD_VAR".into(),
+                    value: crate::value::Value::WERT(vec![99.0]),
+                    axis: None,
+                    axis_var_name: None,
                     description: Some("Deleted FESTWERTEBLOCK block 'OLD_VAR'".into()),
                 },
                 DcmDiff::Changed {

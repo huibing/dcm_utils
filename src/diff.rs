@@ -233,11 +233,21 @@ impl DcmDiffResult {
 pub enum DcmDiff {
     New {
         name: String,
+        value: Value,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        axis: Option<Vec<f64>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        axis_var_name: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         description: Option<String>,
     },
     Deleted {
         name: String,
+        value: Value,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        axis: Option<Vec<f64>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        axis_var_name: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         description: Option<String>,
     },
@@ -281,8 +291,16 @@ fn dcm_diff_with_details(
     for (name, left_block) in left.blocks.iter() {
         if !right.blocks.contains_key(name) {
             let description = format!("Deleted {} block '{}'", block_type_name(left_block), name);
+            let value = left_block.get_values().clone();
+            let (axis, axis_var_name) = match left_block {
+                Block::Table(t) => (Some(t.axis.clone()), Some(t.axis_var_name.clone())),
+                _ => (None, None),
+            };
             diff.push(DcmDiff::Deleted {
                 name: name.clone(),
+                value,
+                axis,
+                axis_var_name,
                 description: Some(description),
             });
         }
@@ -294,8 +312,16 @@ fn dcm_diff_with_details(
             None => {
                 // Block exists in right but not in left - it's new
                 let description = format!("New {} block '{}'", block_type_name(right_block), name);
+                let value = right_block.get_values().clone();
+                let (axis, axis_var_name) = match right_block {
+                    Block::Table(t) => (Some(t.axis.clone()), Some(t.axis_var_name.clone())),
+                    _ => (None, None),
+                };
                 diff.push(DcmDiff::New {
                     name: name.clone(),
+                    value,
+                    axis,
+                    axis_var_name,
                     description: Some(description),
                 });
             }

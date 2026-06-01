@@ -264,7 +264,7 @@ fn main() {
                 println!("{}", "=== Detailed Differences ===".bold());
                 for diff in &result.differences {
                     match diff {
-                        DcmDiff::New { name, description } => {
+                        DcmDiff::New { name, description, .. } => {
                             println!(
                                 "{} {}: {}",
                                 "[NEW]".green().bold(),
@@ -272,7 +272,7 @@ fn main() {
                                 description.as_ref().unwrap_or(&"".to_string())
                             );
                         }
-                        DcmDiff::Deleted { name, description } => {
+                        DcmDiff::Deleted { name, description, .. } => {
                             println!(
                                 "{} {}: {}",
                                 "[DEL]".red().bold(),

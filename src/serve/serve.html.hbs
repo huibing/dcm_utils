@@ -295,7 +295,7 @@
   <table class="diff-table">
     <tr><th class="col-num">#</th><th>Variable Name</th><th>Type</th><th>Description</th></tr>
     {{#each new_items}}
-    <tr><td class="col-num">{{index}}</td><td class="col-name">{{name}}</td><td class="col-type">{{type}}</td><td class="col-desc">{{description}}</td></tr>
+    <tr><td class="col-num">{{index}}</td><td class="col-name"><span class="changed-name" data-name="{{name}}">{{name}}</span></td><td class="col-type">{{type}}</td><td class="col-desc">{{description}}</td></tr>
     {{/each}}
   </table>
   {{else}}
@@ -331,7 +331,7 @@
   <table class="diff-table">
     <tr><th class="col-num">#</th><th>Variable Name</th><th>Type</th><th>Description</th></tr>
     {{#each deleted_items}}
-    <tr><td class="col-num">{{index}}</td><td class="col-name">{{name}}</td><td class="col-type">{{type}}</td><td class="col-desc">{{description}}</td></tr>
+    <tr><td class="col-num">{{index}}</td><td class="col-name"><span class="changed-name" data-name="{{name}}">{{name}}</span></td><td class="col-type">{{type}}</td><td class="col-desc">{{description}}</td></tr>
     {{/each}}
   </table>
   {{else}}
@@ -432,6 +432,7 @@
     switch (d.kind) {
       case 'scalar': return renderScalar(d);
       case 'multi':  return renderMulti(d);
+      case 'multi_with_axis': return renderSingleWithAxis(d);
       case 'curve':  return renderCurve(d);
       case 'map':    return renderMap(d);
       case 'mixed':  return '<p style="padding:20px;color:#3a6a3a;">// value type mismatch — cannot compare</p>';
@@ -495,6 +496,26 @@
         var cls = cmp(o, n);
         h += '<tr><td class="cmp-label">' + (i+1) + '</td><td class="' + cls + '">' + fmt(o) + '</td><td class="' + cls + '">' + fmt(n) + '</td></tr>';
       }
+    }
+    h += '</table>';
+    return h;
+  }
+
+  // Render a single array of values with optional axis
+  function renderSingleWithAxis(d) {
+    var h = '';
+    if (d.axis) {
+      h += '<div class="cmp-section-label">Axis Points (' + esc(d.axis_var_name || '') + ')</div>';
+      h += '<table class="cmp-table" style="margin-bottom:12px;"><tr><th>#</th><th>Value</th></tr>';
+      for (var i = 0; i < d.axis.length; i++) {
+        h += '<tr><td class="cmp-label">' + (i+1) + '</td><td class="same">' + fmt(d.axis[i]) + '</td></tr>';
+      }
+      h += '</table>';
+    }
+    h += '<div class="cmp-section-label">Values</div>';
+    h += '<table class="cmp-table"><tr><th>#</th><th>Value</th></tr>';
+    for (var i = 0; i < d.values.length; i++) {
+      h += '<tr><td class="cmp-label">' + (i+1) + '</td><td class="same">' + fmt(d.values[i]) + '</td></tr>';
     }
     h += '</table>';
     return h;
