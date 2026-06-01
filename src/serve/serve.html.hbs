@@ -3,127 +3,281 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DCM Diff Report</title>
+<title>dcm_diff // REPORT</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&amp;display=swap');
+
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
   body {
-    background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    padding: 24px; max-width: 1200px; margin: 0 auto;
+    background: #0a0e0a;
+    color: #c7d4c7;
+    font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    padding: 32px;
+    max-width: 1200px;
+    margin: 0 auto;
+    position: relative;
+    text-shadow: 0 0 2px rgba(0,255,65,0.08);
   }
-  h1 { font-size: 24px; margin-bottom: 24px; color: #f0f6fc; }
-  h2 { font-size: 18px; margin-bottom: 12px; color: #f0f6fc; }
 
-  .meta { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; margin-bottom: 24px; }
+  /* CRT scanline overlay */
+  body::after {
+    content: '';
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(0,0,0,0.08) 0px,
+      rgba(0,0,0,0.08) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    pointer-events: none; z-index: 9999;
+  }
+
+  /* Section title */
+  .prompt { color: #00ff41; font-weight: 600; font-size: 12px; margin-bottom: 6px; letter-spacing: 0.5px; }
+  .prompt::before { content: '$ '; color: #00ff41; }
+  .prompt::after { content: ' ▊'; animation: blink 1s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ASCII header */
+  .ascii-header {
+    font-size: 11px; line-height: 1.3; white-space: pre; color: #00ff41;
+    margin-bottom: 24px; text-shadow: 0 0 6px rgba(0,255,65,0.4);
+  }
+
+  h1 {
+    font-size: 16px; font-weight: 700; color: #00ff41; margin-bottom: 24px;
+    letter-spacing: 2px; text-transform: uppercase; text-shadow: 0 0 8px rgba(0,255,65,0.3);
+  }
+  h1::before { content: '◆ '; color: #00ff41; }
+
+  h2 {
+    font-size: 13px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+  }
+  h2::before { content: '## '; }
+
+  .hl { color: #00ff41; }
+
+  /* Metadata panel — terminal-style */
+  .meta {
+    background: #0d110d; border: 1px solid #1a3a1a;
+    padding: 16px 20px; margin-bottom: 24px;
+    box-shadow: inset 0 0 20px rgba(0,255,65,0.04), 0 0 10px rgba(0,255,65,0.05);
+    position: relative;
+  }
+  .meta::before {
+    content: '┌─ METADATA '; position: absolute; top: -10px; left: 12px;
+    background: #0a0e0a; padding: 0 8px; font-size: 10px; color: #3a6a3a; letter-spacing: 1px;
+  }
   .meta table { width: 100%; border-collapse: collapse; }
-  .meta td { padding: 4px 12px; font-size: 14px; }
-  .meta td:first-child { color: #8b949e; width: 160px; }
-  .meta td:last-child { font-family: monospace; color: #c9d1d9; }
+  .meta td { padding: 3px 8px; font-size: 12px; }
+  .meta td:first-child { color: #3a7a3a; width: 180px; }
+  .meta td:last-child { color: #b0d0b0; }
+  .meta .label { color: #3a7a3a; }
+  .meta .value { color: #b0d0b0; }
 
-  .stats { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 32px; }
-  .stat-card { flex: 1; min-width: 120px; border-radius: 8px; padding: 20px 16px; text-align: center; border: 1px solid; }
-  .stat-card .num { font-size: 36px; font-weight: bold; }
-  .stat-card .label { font-size: 13px; margin-top: 6px; text-transform: uppercase; letter-spacing: 1px; }
-  .stat-new { background: #0d2818; border-color: #1a5c2a; }
-  .stat-new .num { color: #4ade80; } .stat-new .label { color: #4ade80; }
-  .stat-del { background: #2d1111; border-color: #5c1a1a; }
-  .stat-del .num { color: #f87171; } .stat-del .label { color: #f87171; }
-  .stat-chg { background: #2d2411; border-color: #5c4a1a; }
-  .stat-chg .num { color: #fbbf24; } .stat-chg .label { color: #fbbf24; }
-  .stat-tot { background: #0d1a2d; border-color: #1a3a5c; }
-  .stat-tot .num { color: #93c5fd; } .stat-tot .label { color: #93c5fd; }
+  /* Stats — terminal cards */
+  .stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 32px; }
+  .stat-card {
+    flex: 1; min-width: 110px; padding: 16px 12px; text-align: center;
+    border: 1px solid; position: relative; overflow: hidden;
+  }
+  .stat-card::before {
+    content: '▌'; position: absolute; left: 0; top: 0; bottom: 0;
+    font-size: 28px; line-height: 56px;
+  }
+  .stat-card .num { font-size: 32px; font-weight: 700; letter-spacing: 2px; }
+  .stat-card .label { font-size: 10px; margin-top: 4px; letter-spacing: 2px; text-transform: uppercase; }
+  .stat-new { background: #0a1a0a; border-color: #1a5c2a; }
+  .stat-new .num { color: #00ff41; text-shadow: 0 0 8px rgba(0,255,65,0.5); }
+  .stat-new .label { color: #2a8a3a; }
+  .stat-del { background: #1a0a0a; border-color: #5c1a1a; }
+  .stat-del .num { color: #ff3333; text-shadow: 0 0 8px rgba(255,51,51,0.4); }
+  .stat-del .label { color: #8a2a2a; }
+  .stat-chg { background: #1a180a; border-color: #5a4a1a; }
+  .stat-chg .num { color: #ffb000; text-shadow: 0 0 8px rgba(255,176,0,0.4); }
+  .stat-chg .label { color: #8a702a; }
+  .stat-tot { background: #0a121a; border-color: #1a3a5c; }
+  .stat-tot .num { color: #00d4ff; text-shadow: 0 0 8px rgba(0,212,255,0.4); }
+  .stat-tot .label { color: #2a6a8a; }
 
-  .section { margin-bottom: 24px; }
+  /* Sections */
+  .section { margin-bottom: 28px; }
+
   .section-header {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 10px 16px; border-radius: 8px 8px 0 0; border: 1px solid; border-bottom: none;
+    padding: 10px 16px; border: 1px solid; border-bottom: none;
+    position: relative;
   }
-  .section-header h2 { margin: 0; font-size: 15px; }
-  .export-btn { text-decoration: none; border: 1px solid; padding: 4px 12px; border-radius: 4px; font-size: 12px; }
 
-  .sec-new .section-header { background: #0d2818; border-color: #1a5c2a; } .sec-new h2 { color: #4ade80; } .sec-new .export-btn { color: #4ade80; border-color: #4ade80; }
-  .sec-del .section-header { background: #2d1111; border-color: #5c1a1a; } .sec-del h2 { color: #f87171; } .sec-del .export-btn { color: #f87171; border-color: #f87171; }
-  .sec-chg .section-header { background: #2d2411; border-color: #5c4a1a; } .sec-chg h2 { color: #fbbf24; } .sec-chg .export-btn { color: #fbbf24; border-color: #fbbf24; }
+  .section-header h2 { margin: 0; color: inherit; }
+  .export-btn {
+    text-decoration: none; border: 1px solid; padding: 4px 14px;
+    font-size: 11px; font-family: inherit; letter-spacing: 1px; text-transform: uppercase;
+    transition: all 0.2s;
+  }
+  .export-btn:hover { background: rgba(0,255,65,0.1); text-shadow: 0 0 6px currentColor; }
 
-  table.diff-table { width: 100%; border-collapse: collapse; border: 1px solid #30363d; border-top: none; border-radius: 0 0 8px 8px; overflow: hidden; }
-  table.diff-table th { padding: 6px 12px; text-align: left; color: #8b949e; font-weight: normal; font-size: 12px; border-bottom: 1px solid #21262d; background: #161b22; }
-  table.diff-table td { padding: 5px 12px; font-size: 13px; border-bottom: 1px solid #21262d; }
-  table.diff-table .col-num { color: #484f58; width: 40px; }
-  table.diff-table .col-name { font-family: monospace; }
-  .sec-new .col-name { color: #4ade80; }
-  .sec-del .col-name { color: #f87171; }
-  .sec-chg .col-name { color: #fbbf24; }
+  .sec-new .section-header { background: #0a1a0a; border-color: #1a5c2a; }
+  .sec-new h2 { color: #00ff41; }
+  .sec-new .export-btn { color: #00ff41; border-color: #00ff41; }
 
-  .empty-msg { padding: 16px; color: #484f58; text-align: center; border: 1px solid #30363d; border-radius: 0 0 8px 8px; }
-  .footer { margin-top: 24px; padding: 12px 16px; background: #161b22; border-radius: 8px; font-size: 12px; color: #484f58; }
+  .sec-del .section-header { background: #1a0a0a; border-color: #5c1a1a; }
+  .sec-del h2 { color: #ff3333; }
+  .sec-del .export-btn { color: #ff3333; border-color: #ff3333; }
 
-  .changed-name { cursor: pointer; border-bottom: 1px dashed currentColor; }
-  .changed-name:hover { opacity: 0.8; }
+  .sec-chg .section-header { background: #1a180a; border-color: #5a4a1a; }
+  .sec-chg h2 { color: #ffb000; }
+  .sec-chg .export-btn { color: #ffb000; border-color: #ffb000; }
 
-  /* Modal */
+  /* Tables — terminal borders */
+  table.diff-table {
+    width: 100%; border-collapse: collapse;
+    border: 1px solid; border-top: none; font-size: 12px;
+  }
+  .sec-new table.diff-table { border-color: #1a5c2a; }
+  .sec-del table.diff-table { border-color: #5c1a1a; }
+  .sec-chg table.diff-table { border-color: #5a4a1a; }
+
+  table.diff-table th {
+    padding: 6px 12px; text-align: left; font-weight: normal; font-size: 11px;
+    letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid;
+  }
+  .sec-new table.diff-table th { color: #2a7a3a; border-color: #1a3a1a; background: #0d150d; }
+  .sec-del table.diff-table th { color: #7a2a2a; border-color: #3a1a1a; background: #150d0d; }
+  .sec-chg table.diff-table th { color: #7a6a2a; border-color: #3a2a1a; background: #15120d; }
+
+  table.diff-table td { padding: 4px 12px; border-bottom: 1px solid; }
+  .sec-new table.diff-table td { border-color: #0d1d0d; }
+  .sec-del table.diff-table td { border-color: #1d0d0d; }
+  .sec-chg table.diff-table td { border-color: #1d150d; }
+  table.diff-table tr:hover td { background: rgba(0,255,65,0.03); }
+
+  table.diff-table .col-num { color: #3a5a3a; width: 36px; }
+  table.diff-table .col-type { color: #6a8a6a; font-size: 11px; }
+  .sec-new .col-name { color: #00ff41; text-shadow: 0 0 4px rgba(0,255,65,0.2); }
+  .sec-del .col-name { color: #ff3333; }
+  .sec-chg .col-name { color: #ffb000; text-shadow: 0 0 4px rgba(255,176,0,0.2); }
+  .col-desc { color: #8a9a8a; font-size: 11px; }
+
+  .empty-msg { padding: 20px; color: #2a4a2a; text-align: center; border: 1px solid #1a2a1a; border-top: none; }
+
+  /* Footer */
+  .footer {
+    margin-top: 32px; padding: 12px 16px; border-top: 1px solid #1a2a1a;
+    font-size: 10px; color: #2a4a2a; letter-spacing: 0.5px;
+  }
+  .footer::before { content: '═══ '; }
+
+  /* Changed name — terminal cursor indicator */
+  .changed-name {
+    cursor: pointer; border-bottom: 1px dashed currentColor;
+    position: relative;
+  }
+  .changed-name:hover { text-shadow: 0 0 8px currentColor; }
+  .changed-name:hover::after {
+    content: ' ▸'; font-weight: 700;
+  }
+
+  /* Modal — terminal overlay */
   .modal-overlay {
     display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0,0,0,0.7); z-index: 1000;
-    align-items: flex-start; justify-content: center;
-    padding-top: 40px;
+    background: rgba(0,8,0,0.88); z-index: 1000;
+    align-items: flex-start; justify-content: center; padding-top: 30px;
+    backdrop-filter: blur(2px);
   }
   .modal-overlay.show { display: flex; }
   .modal-content {
-    background: #161b22; border: 1px solid #30363d; border-radius: 12px;
-    max-width: 95vw; max-height: 85vh; overflow-y: auto;
-    min-width: 420px; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    background: #0d110d; border: 1px solid #1a4a1a; max-width: 92vw; max-height: 82vh;
+    overflow-y: auto; min-width: 440px;
+    box-shadow: 0 0 30px rgba(0,255,65,0.08), inset 0 0 30px rgba(0,255,65,0.02);
+    position: relative;
+  }
+  .modal-content::before {
+    content: '┌─ DIFF DETAILS '; position: absolute; top: -10px; left: 12px;
+    background: #0a0e0a; padding: 0 8px; font-size: 10px; color: #3a6a3a; letter-spacing: 1px;
   }
   .modal-header {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 14px 20px; border-bottom: 1px solid #30363d;
-    position: sticky; top: 0; background: #161b22; border-radius: 12px 12px 0 0; z-index: 1;
+    padding: 14px 20px; border-bottom: 1px solid #1a3a1a;
+    position: sticky; top: 0; background: #0d110d; z-index: 1;
   }
-  .modal-title { color: #f0f6fc; font-size: 15px; font-weight: 600; font-family: monospace; }
+  .modal-title { color: #00ff41; font-size: 13px; font-weight: 600; }
+  .modal-title::before { content: '> '; color: #00ff41; }
   .modal-close {
-    background: none; border: none; color: #8b949e; font-size: 22px;
-    cursor: pointer; padding: 0 4px; line-height: 1;
+    background: none; border: 1px solid #2a4a2a; color: #4a7a4a; font-size: 14px;
+    cursor: pointer; padding: 2px 10px; font-family: inherit; transition: all 0.2s;
   }
-  .modal-close:hover { color: #f0f6fc; }
+  .modal-close:hover { color: #ff3333; border-color: #ff3333; }
   .modal-body { padding: 20px; }
 
-  /* Comparison tables */
-  .cmp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  .cmp-table th { padding: 6px 10px; text-align: left; color: #8b949e; font-weight: normal; border-bottom: 1px solid #21262d; }
-  .cmp-table td { padding: 5px 10px; border-bottom: 1px solid #21262d; font-family: monospace; }
-  .cmp-label { color: #484f58; width: 36px; }
-  .cmp-table .diff { background: rgba(251,191,36,0.15); color: #fbbf24; }
-  .cmp-table .same { color: #484f58; }
-  .cmp-table .missing { background: rgba(248,113,113,0.1); color: #f87171; }
+  /* Comparison tables inside modal — terminal grid */
+  .cmp-table {
+    width: 100%; border-collapse: collapse; font-size: 12px;
+    border: 1px solid #1a3a1a; font-family: inherit;
+  }
+  .cmp-table th {
+    padding: 5px 10px; text-align: left; font-weight: normal; font-size: 10px;
+    color: #3a7a3a; letter-spacing: 1px; text-transform: uppercase;
+    border-bottom: 1px solid #1a3a1a; background: #0d150d;
+  }
+  .cmp-table td { padding: 4px 10px; border-bottom: 1px solid #0d1d0d; }
+  .cmp-label { color: #3a5a3a; width: 28px; }
+  .cmp-table .diff { background: rgba(255,176,0,0.08); color: #ffb000; text-shadow: 0 0 4px rgba(255,176,0,0.2); }
+  .cmp-table .same { color: #3a5a3a; }
+  .cmp-table .missing { background: rgba(255,51,51,0.06); color: #ff5555; }
 
+  .cmp-section-label {
+    color: #3a7a3a; font-size: 10px; margin-bottom: 6px; letter-spacing: 1px; text-transform: uppercase;
+  }
+  .cmp-section-label::before { content: '▸ '; }
+  .cmp-summary { color: #8a9a8a; font-size: 12px; margin-bottom: 12px; line-height: 1.6; }
+
+  /* Map grid */
   .map-grid-wrapper { overflow-x: auto; }
-  .map-grid td.map-cell { padding: 2px 4px; text-align: right; min-width: 85px; vertical-align: middle; }
-  .map-cell .old-val { display: block; font-size: 10px; color: #8b949e; }
-  .map-cell .new-val { display: block; font-size: 11px; }
-  .map-cell.diff { background: rgba(251,191,36,0.15); }
-  .map-cell.diff .new-val { color: #fbbf24; }
-  .map-cell.same { background: rgba(22,27,34,0.4); }
-  .map-cell.same .old-val { color: #30363d; }
-  .map-cell.same .new-val { color: #484f58; }
-  .axis-label { color: #8b949e; font-size: 11px; font-weight: normal; }
+  .map-grid td.map-cell { padding: 2px 4px; text-align: right; min-width: 80px; vertical-align: middle; }
+  .map-cell .old-val { display: block; font-size: 9px; color: #4a6a4a; }
+  .map-cell .new-val { display: block; font-size: 10px; }
+  .map-cell.diff { background: rgba(255,176,0,0.08); }
+  .map-cell.diff .new-val { color: #ffb000; text-shadow: 0 0 4px rgba(255,176,0,0.2); }
+  .map-cell.same { background: rgba(10,16,10,0.3); }
+  .map-cell.same .old-val { color: #2a3a2a; }
+  .map-cell.same .new-val { color: #4a6a4a; }
+  .axis-label { color: #3a7a3a; font-size: 10px; font-weight: normal; }
 
-  .cmp-section-label { color: #8b949e; font-size: 12px; margin-bottom: 8px; }
-  .cmp-summary { color: #c9d1d9; font-size: 13px; margin-bottom: 16px; line-height: 1.6; }
+  /* Scrollbar styling */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #0a0e0a; }
+  ::-webkit-scrollbar-thumb { background: #1a3a1a; }
+  ::-webkit-scrollbar-thumb:hover { background: #2a5a2a; }
+
+  /* Selection */
+  ::selection { background: rgba(0,255,65,0.2); color: #00ff41; }
 </style>
 </head>
 <body>
+
+<div class="ascii-header">  ▄▄▄·  ▄▄▄·  ▄▄· ▄▄▄▄▄      ▄▄▄  ·▄▄▄▄  ▄▄▄ .▄▄▄▄▄
+ ▐█ ▀█ ▐█ ▀█ ▐█ ▌▪•██  ▄▪   ▀▄ █·██▪ ██ ▀▄.▀·•██
+ ▄█▀▀█ ▄█▀▀█ ██ ▄▄ ▐█.▪▐▀  ▐▀▀▄ ▐█· ▐█▌▐▀▀▪▄ ▐█.▪
+▐█  ▐▌▐█  ▐▌▐███▌ ▐█▌·▐█▄▄▌▐█•█▌██. ██ ▐█▄▄▌ ▐█▌·
+ ▀  ▀  ▀  ▀ ·▀▀▀  ▀▀▀  ▀▀▀ .▀  ▀▀▀▀▀▀▀  ▀▀▀  ▀▀▀</div>
 
 <h1>DCM Diff Report</h1>
 
 <!-- Metadata -->
 <div class="meta">
   <table>
-    <tr><td>Original (Left)</td><td>{{metadata.original_file}}</td></tr>
-    <tr><td>Modified (Right)</td><td>{{metadata.modified_file}}</td></tr>
-    <tr><td>Timestamp</td><td>{{metadata.timestamp}}</td></tr>
-    <tr><td>Approx Mode</td><td>{{approx}}</td></tr>
+    <tr><td class="label">ORIGINAL</td><td class="value">{{metadata.original_file}}</td></tr>
+    <tr><td class="label">MODIFIED</td><td class="value">{{metadata.modified_file}}</td></tr>
+    <tr><td class="label">TIMESTAMP</td><td class="value">{{metadata.timestamp}}</td></tr>
+    <tr><td class="label">APPROX_MODE</td><td class="value">{{approx}}</td></tr>
   </table>
 </div>
 
 <!-- Statistics -->
+<div class="prompt">STATUS</div>
 <div class="stats">
   <div class="stat-card stat-new"><div class="num">{{summary.new_count}}</div><div class="label">New</div></div>
   <div class="stat-card stat-del"><div class="num">{{summary.deleted_count}}</div><div class="label">Deleted</div></div>
@@ -141,11 +295,11 @@
   <table class="diff-table">
     <tr><th class="col-num">#</th><th>Variable Name</th><th>Type</th><th>Description</th></tr>
     {{#each new_items}}
-    <tr><td class="col-num">{{index}}</td><td class="col-name">{{name}}</td><td>{{type}}</td><td>{{description}}</td></tr>
+    <tr><td class="col-num">{{index}}</td><td class="col-name">{{name}}</td><td class="col-type">{{type}}</td><td class="col-desc">{{description}}</td></tr>
     {{/each}}
   </table>
   {{else}}
-  <div class="empty-msg">No new variables</div>
+  <div class="empty-msg">// no new variables</div>
   {{/if}}
 </div>
 
@@ -159,11 +313,11 @@
   <table class="diff-table">
     <tr><th class="col-num">#</th><th>Variable Name</th><th>Type</th><th>Change Summary</th></tr>
     {{#each changed_items}}
-    <tr><td class="col-num">{{index}}</td><td class="col-name"><span class="changed-name" data-name="{{name}}">{{name}}</span></td><td>{{type}}</td><td>{{change_summary}}</td></tr>
+    <tr><td class="col-num">{{index}}</td><td class="col-name"><span class="changed-name" data-name="{{name}}">{{name}}</span></td><td class="col-type">{{type}}</td><td class="col-desc">{{change_summary}}</td></tr>
     {{/each}}
   </table>
   {{else}}
-  <div class="empty-msg">No changed variables</div>
+  <div class="empty-msg">// no changed variables</div>
   {{/if}}
 </div>
 
@@ -177,15 +331,15 @@
   <table class="diff-table">
     <tr><th class="col-num">#</th><th>Variable Name</th><th>Type</th><th>Description</th></tr>
     {{#each deleted_items}}
-    <tr><td class="col-num">{{index}}</td><td class="col-name">{{name}}</td><td>{{type}}</td><td>{{description}}</td></tr>
+    <tr><td class="col-num">{{index}}</td><td class="col-name">{{name}}</td><td class="col-type">{{type}}</td><td class="col-desc">{{description}}</td></tr>
     {{/each}}
   </table>
   {{else}}
-  <div class="empty-msg">No deleted variables</div>
+  <div class="empty-msg">// no deleted variables</div>
   {{/if}}
 </div>
 
-<div class="footer">Generated by dcm_utils &mdash; {{metadata.timestamp}}</div>
+<div class="footer">generated by dcm_utils // {{metadata.timestamp}}</div>
 
 <!-- Diff Detail Modal -->
 {{#if has_changes}}
@@ -193,7 +347,7 @@
   <div class="modal-content">
     <div class="modal-header">
       <span class="modal-title"></span>
-      <button class="modal-close" title="Close (Esc)">&times;</button>
+      <button class="modal-close" title="Close (Esc)">[x]</button>
     </div>
     <div class="modal-body"></div>
   </div>
@@ -280,8 +434,8 @@
       case 'multi':  return renderMulti(d);
       case 'curve':  return renderCurve(d);
       case 'map':    return renderMap(d);
-      case 'mixed':  return '<p style="padding:20px;color:#8b949e;">The value type changed between versions — detailed comparison is not available.</p>';
-      default:       return '<p style="padding:20px;color:#8b949e;">No detailed comparison data available.</p>';
+      case 'mixed':  return '<p style="padding:20px;color:#3a6a3a;">// value type mismatch — cannot compare</p>';
+      default:       return '<p style="padding:20px;color:#3a6a3a;">// no detail data available</p>';
     }
   }
 
@@ -367,17 +521,17 @@
       h += renderAxisTable('Y-Axis (' + esc(d.y_axis_name) + ')', d.old_y_axis, d.new_y_axis);
     }
 
-    h += '<div class="cmp-section-label">Map Data (' + d.dim_x + ' × ' + d.dim_y + ')</div>';
+    h += '<div class="cmp-section-label">Map Data (' + d.dim_x + ' &times; ' + d.dim_y + ')</div>';
     h += '<div class="map-grid-wrapper"><table class="cmp-table map-grid">';
     // Header: old X axis values
     h += '<tr><th></th>';
     for (var x = 0; x < d.dim_x; x++) {
-      h += '<th class="axis-label">' + (d.old_x_axis && d.old_x_axis[x] !== undefined ? fmt(d.old_x_axis[x]) : '—') + '</th>';
+      h += '<th class="axis-label">' + (d.old_x_axis && d.old_x_axis[x] !== undefined ? fmt(d.old_x_axis[x]) : '&mdash;') + '</th>';
     }
     h += '</tr>';
     // Data rows (row-major: old dims define grid shape)
     for (var y = 0; y < d.dim_y; y++) {
-      var yLabel = d.old_y_axis && d.old_y_axis[y] !== undefined ? fmt(d.old_y_axis[y]) : '—';
+      var yLabel = d.old_y_axis && d.old_y_axis[y] !== undefined ? fmt(d.old_y_axis[y]) : '&mdash;';
       h += '<tr><th class="axis-label">' + yLabel + '</th>';
       for (var x = 0; x < d.dim_x; x++) {
         var idx = y * d.dim_x + x;
@@ -395,8 +549,8 @@
       if (cmp(d.old_values[i], d.new_values[i]) === 'same') sameCount++; else diffCount++;
     }
     h += '<div class="cmp-summary" style="margin-top:12px;">' +
-      '<span style="color:#fbbf24;">● ' + diffCount + ' changed</span> &nbsp; ' +
-      '<span style="color:#484f58;">● ' + sameCount + ' unchanged</span></div>';
+      '<span style="color:#ffb000;">* ' + diffCount + ' changed</span> &nbsp; ' +
+      '<span style="color:#3a5a3a;">* ' + sameCount + ' unchanged</span></div>';
     return h;
   }
 
