@@ -528,23 +528,6 @@
     h += '</table>';
     return h;
   }
-    var h = '';
-    if (d.axis) {
-      h += '<div class="cmp-section-label">Axis Points (' + esc(d.axis_var_name || '') + ')</div>';
-      h += '<table class="cmp-table" style="margin-bottom:12px;"><tr><th>#</th><th>Value</th></tr>';
-      for (var i = 0; i < d.axis.length; i++) {
-        h += '<tr><td class="cmp-label">' + (i+1) + '</td><td class="same">' + fmt(d.axis[i]) + '</td></tr>';
-      }
-      h += '</table>';
-    }
-    h += '<div class="cmp-section-label">Values</div>';
-    h += '<table class="cmp-table"><tr><th>#</th><th>Value</th></tr>';
-    for (var i = 0; i < d.values.length; i++) {
-      h += '<tr><td class="cmp-label">' + (i+1) + '</td><td class="same">' + fmt(d.values[i]) + '</td></tr>';
-    }
-    h += '</table>';
-    return h;
-  }
 
   function renderCurve(d) {
     var h = '';
