@@ -37,7 +37,7 @@
   /* Section title */
   .prompt { color: #00ff41; font-weight: 600; font-size: 12px; margin-bottom: 6px; letter-spacing: 0.5px; }
   .prompt::before { content: '$ '; color: #00ff41; }
-  .prompt::after { content: ' ▊'; animation: blink 1s step-end infinite; }
+  .prompt::after { content: ' ▊'; animation: blink 1s step-end infinite; color: #00ff41;}
   @keyframes blink { 50% { opacity: 0; } }
 
   /* ASCII header */
@@ -258,13 +258,15 @@
 </head>
 <body>
 
-<div class="ascii-header">  ▄▄▄·  ▄▄▄·  ▄▄· ▄▄▄▄▄      ▄▄▄  ·▄▄▄▄  ▄▄▄ .▄▄▄▄▄
- ▐█ ▀█ ▐█ ▀█ ▐█ ▌▪•██  ▄▪   ▀▄ █·██▪ ██ ▀▄.▀·•██
- ▄█▀▀█ ▄█▀▀█ ██ ▄▄ ▐█.▪▐▀  ▐▀▀▄ ▐█· ▐█▌▐▀▀▪▄ ▐█.▪
-▐█  ▐▌▐█  ▐▌▐███▌ ▐█▌·▐█▄▄▌▐█•█▌██. ██ ▐█▄▄▌ ▐█▌·
- ▀  ▀  ▀  ▀ ·▀▀▀  ▀▀▀  ▀▀▀ .▀  ▀▀▀▀▀▀▀  ▀▀▀  ▀▀▀</div>
+<div class="ascii-header"> ██████╗ █████╗ ██╗     ██╗██████╗ ██████╗  █████╗ ████████╗██╗ ██████╗ ███╗   ██╗███████╗
+██╔════╝██╔══██╗██║     ██║██╔══██╗██╔══██╗██╔══██╗╚══██╔══╝██║██╔═══██╗████╗  ██║██╔════╝
+██║     ███████║██║     ██║██████╔╝██████╔╝███████║   ██║   ██║██║   ██║██╔██╗ ██║███████╗
+██║     ██╔══██║██║     ██║██╔══██╗██╔══██╗██╔══██║   ██║   ██║██║   ██║██║╚██╗██║╚════██║
+╚██████╗██║  ██║███████╗██║██████╔╝██║  ██║██║  ██║   ██║   ██║╚██████╔╝██║ ╚████║███████║
+ ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝
+                                                                                          </div>
 
-<h1>DCM Diff Report</h1>
+<h1 class="prompt">DCM Diff Report</h1>
 
 <!-- Metadata -->
 <div class="meta">
@@ -288,7 +290,7 @@
 <!-- New Variables -->
 <div class="section sec-new">
   <div class="section-header">
-    <h2>+ {{summary.new_count}} New Variables</h2>
+    <h2 class="prompt">+ {{summary.new_count}} New Variables</h2>
     <a class="export-btn" href="/export/new" download>&darr; Export CSV</a>
   </div>
   {{#if new_items}}
@@ -306,7 +308,7 @@
 <!-- Changed Variables -->
 <div class="section sec-chg">
   <div class="section-header">
-    <h2>~ {{summary.changed_count}} Changed Variables</h2>
+    <h2 class="prompt">~ {{summary.changed_count}} Changed Variables</h2>
     <a class="export-btn" href="/export/changed" download>&darr; Export CSV</a>
   </div>
   {{#if changed_items}}
@@ -324,7 +326,7 @@
 <!-- Deleted Variables -->
 <div class="section sec-del">
   <div class="section-header">
-    <h2>&minus; {{summary.deleted_count}} Deleted Variables</h2>
+    <h2 class="prompt">&minus; {{summary.deleted_count}} Deleted Variables</h2>
     <a class="export-btn" href="/export/deleted" download>&darr; Export CSV</a>
   </div>
   {{#if deleted_items}}
