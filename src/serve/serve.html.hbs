@@ -444,40 +444,6 @@
     }
   }
 
-  // Compute element-by-element diff of two arrays
-  function diffArrays(oldArr, newArr) {
-    var result = [];
-    var len = Math.max(oldArr.length, newArr.length);
-    for (var i = 0; i < len; i++) {
-      var o = oldArr[i], n = newArr[i];
-      if (o === undefined) result.push({idx: i, old: undefined, new: n, cls: 'diff', missing: 'old'});
-      else if (n === undefined) result.push({idx: i, old: o, new: undefined, cls: 'diff', missing: 'new'});
-      else result.push({idx: i, old: o, new: n, cls: cmp(o, n)});
-    }
-    return result;
-  }
-
-  // Render a compact axis comparison table; returns empty string if unchanged
-  function renderAxisTable(label, oldAxis, newAxis) {
-    var rows = diffArrays(oldAxis, newAxis);
-    var unchanged = rows.every(function(r) { return r.cls === 'same'; });
-    if (unchanged) return '';
-    var h = '<div class="cmp-section-label">' + label + ' (changed)</div>';
-    h += '<table class="cmp-table" style="margin-bottom:12px;"><tr><th>#</th><th>Old</th><th>New</th></tr>';
-    for (var i = 0; i < rows.length; i++) {
-      var r = rows[i];
-      if (r.missing === 'old') {
-        h += '<tr><td class="cmp-label">' + (i+1) + '</td><td class="missing">&mdash;</td><td class="diff">' + fmt(r.new) + '</td></tr>';
-      } else if (r.missing === 'new') {
-        h += '<tr><td class="cmp-label">' + (i+1) + '</td><td class="diff">' + fmt(r.old) + '</td><td class="missing">&mdash;</td></tr>';
-      } else {
-        h += '<tr><td class="cmp-label">' + (i+1) + '</td><td class="' + r.cls + '">' + fmt(r.old) + '</td><td class="' + r.cls + '">' + fmt(r.new) + '</td></tr>';
-      }
-    }
-    h += '</table>';
-    return h;
-  }
-
   function renderScalar(d) {
     var o = d.old_values[0], n = d.new_values[0];
     var cls = cmp(o, n);
@@ -529,23 +495,16 @@
 
   // Curve comparison — axis, old, and new in one table
   function renderCurve(d) {
-    var h = '';
-    var axis = d.old_axis || d.new_axis || [];
-    var axisChanged = false;
-    if (d.old_axis && d.new_axis) {
-      var axisDiff = diffArrays(d.old_axis, d.new_axis);
-      axisChanged = !axisDiff.every(function(r) { return r.cls === 'same'; });
-      if (axisChanged) h += renderAxisTable('Axis Points', d.old_axis, d.new_axis);
-    }
     var len = Math.max(d.old_values.length, d.new_values.length);
-    h += '<div class="cmp-section-label">Curve Data</div>';
-    h += '<table class="cmp-table"><tr><th>#</th>';
-    if (axis.length > 0) h += '<th>Axis</th>';
-    h += '<th>Old</th><th>New</th></tr>';
+    var h = '<div class="cmp-section-label">Curve Data</div>';
+    h += '<table class="cmp-table"><tr><th>#</th><th>Axis</th><th>Old</th><th>New</th></tr>';
     for (var i = 0; i < len; i++) {
       var o = d.old_values[i], n = d.new_values[i];
+      var oa = d.old_axis ? d.old_axis[i] : undefined;
+      var na = d.new_axis ? d.new_axis[i] : undefined;
       h += '<tr><td class="cmp-label">' + (i+1) + '</td>';
-      if (axis.length > 0) h += '<td class="axis-label">' + (axis[i] !== undefined ? fmt(axis[i]) : '&mdash;') + '</td>';
+      // Axis with old/new stacked (like map cells)
+      h += '<td class="map-cell"><span class="old-val">' + (oa !== undefined ? fmt(oa) : '&mdash;') + '</span><span class="new-val">' + (na !== undefined ? fmt(na) : '&mdash;') + '</span></td>';
       if (o === undefined) {
         h += '<td class="missing">&mdash;</td><td class="diff">' + fmt(n) + '</td>';
       } else if (n === undefined) {
@@ -561,28 +520,19 @@
   }
 
   function renderMap(d) {
-    var h = '';
-
-    // Show axis comparisons when axes differ
-    if (d.old_x_axis && d.new_x_axis) {
-      h += renderAxisTable('X-Axis (' + esc(d.x_axis_name) + ')', d.old_x_axis, d.new_x_axis);
-    }
-    if (d.old_y_axis && d.new_y_axis) {
-      h += renderAxisTable('Y-Axis (' + esc(d.y_axis_name) + ')', d.old_y_axis, d.new_y_axis);
-    }
-
-    h += '<div class="cmp-section-label">Map Data (' + d.dim_x + ' &times; ' + d.dim_y + ')</div>';
+    var h = '<div class="cmp-section-label">Map Data (' + d.dim_x + ' &times; ' + d.dim_y + ')</div>';
     h += '<div class="map-grid-wrapper"><table class="cmp-table map-grid">';
-    // Header: old X axis values
+    // Header: X axis values (old/new stacked)
     h += '<tr><th></th>';
     for (var x = 0; x < d.dim_x; x++) {
-      h += '<th class="axis-label">' + (d.old_x_axis && d.old_x_axis[x] !== undefined ? fmt(d.old_x_axis[x]) : '&mdash;') + '</th>';
+      var ox = d.old_x_axis && d.old_x_axis[x], nx = d.new_x_axis && d.new_x_axis[x];
+      h += '<th class="map-cell"><span class="old-val">' + (ox !== undefined ? fmt(ox) : '&mdash;') + '</span><span class="new-val">' + (nx !== undefined ? fmt(nx) : '&mdash;') + '</span></th>';
     }
     h += '</tr>';
     // Data rows (row-major: old dims define grid shape)
     for (var y = 0; y < d.dim_y; y++) {
-      var yLabel = d.old_y_axis && d.old_y_axis[y] !== undefined ? fmt(d.old_y_axis[y]) : '&mdash;';
-      h += '<tr><th class="axis-label">' + yLabel + '</th>';
+      var oy = d.old_y_axis && d.old_y_axis[y], ny = d.new_y_axis && d.new_y_axis[y];
+      h += '<tr><th class="map-cell"><span class="old-val">' + (oy !== undefined ? fmt(oy) : '&mdash;') + '</span><span class="new-val">' + (ny !== undefined ? fmt(ny) : '&mdash;') + '</span></th>';
       for (var x = 0; x < d.dim_x; x++) {
         var idx = y * d.dim_x + x;
         var o = d.old_values[idx], n = d.new_values[idx];
