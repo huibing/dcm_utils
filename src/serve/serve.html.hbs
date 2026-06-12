@@ -511,33 +511,52 @@
       '<tr><td class="cmp-label">Val</td><td class="same">' + fmt(d.values[0]) + '</td></tr></table>';
   }
 
-  // Render a single array of values with optional axis
+  // Render a single array of values — axis and data in one table
   function renderSingleArray(d) {
-    var h = '';
-    if (d.axis) {
-      h += '<div class="cmp-section-label">Axis Points (' + esc(d.axis_var_name || '') + ')</div>';
-      h += '<table class="cmp-table" style="margin-bottom:12px;"><tr><th>#</th><th>Value</th></tr>';
-      for (var i = 0; i < d.axis.length; i++) {
-        h += '<tr><td class="cmp-label">' + (i+1) + '</td><td class="same">' + fmt(d.axis[i]) + '</td></tr>';
-      }
-      h += '</table>';
-    }
-    h += '<div class="cmp-section-label">Values</div>';
-    h += '<table class="cmp-table"><tr><th>#</th><th>Value</th></tr>';
-    for (var i = 0; i < d.values.length; i++) {
-      h += '<tr><td class="cmp-label">' + (i+1) + '</td><td class="same">' + fmt(d.values[i]) + '</td></tr>';
+    var len = Math.max(d.values ? d.values.length : 0, d.axis ? d.axis.length : 0);
+    var h = '<div class="cmp-section-label">Data</div>';
+    h += '<table class="cmp-table"><tr><th>#</th>';
+    if (d.axis) h += '<th>Axis' + (d.axis_var_name ? ' (' + esc(d.axis_var_name) + ')' : '') + '</th>';
+    h += '<th>Value</th></tr>';
+    for (var i = 0; i < len; i++) {
+      h += '<tr><td class="cmp-label">' + (i+1) + '</td>';
+      if (d.axis) h += '<td class="axis-label">' + (d.axis[i] !== undefined ? fmt(d.axis[i]) : '&mdash;') + '</td>';
+      h += '<td class="same">' + (d.values[i] !== undefined ? fmt(d.values[i]) : '&mdash;') + '</td></tr>';
     }
     h += '</table>';
     return h;
   }
 
+  // Curve comparison — axis, old, and new in one table
   function renderCurve(d) {
     var h = '';
+    var axis = d.old_axis || d.new_axis || [];
+    var axisChanged = false;
     if (d.old_axis && d.new_axis) {
-      h += renderAxisTable('Axis Points', d.old_axis, d.new_axis);
+      var axisDiff = diffArrays(d.old_axis, d.new_axis);
+      axisChanged = !axisDiff.every(function(r) { return r.cls === 'same'; });
+      if (axisChanged) h += renderAxisTable('Axis Points', d.old_axis, d.new_axis);
     }
-    h += '<div class="cmp-section-label">Data Values</div>';
-    h += renderMulti(d);
+    var len = Math.max(d.old_values.length, d.new_values.length);
+    h += '<div class="cmp-section-label">Curve Data</div>';
+    h += '<table class="cmp-table"><tr><th>#</th>';
+    if (axis.length > 0) h += '<th>Axis</th>';
+    h += '<th>Old</th><th>New</th></tr>';
+    for (var i = 0; i < len; i++) {
+      var o = d.old_values[i], n = d.new_values[i];
+      h += '<tr><td class="cmp-label">' + (i+1) + '</td>';
+      if (axis.length > 0) h += '<td class="axis-label">' + (axis[i] !== undefined ? fmt(axis[i]) : '&mdash;') + '</td>';
+      if (o === undefined) {
+        h += '<td class="missing">&mdash;</td><td class="diff">' + fmt(n) + '</td>';
+      } else if (n === undefined) {
+        h += '<td class="diff">' + fmt(o) + '</td><td class="missing">&mdash;</td>';
+      } else {
+        var cls = cmp(o, n);
+        h += '<td class="' + cls + '">' + fmt(o) + '</td><td class="' + cls + '">' + fmt(n) + '</td>';
+      }
+      h += '</tr>';
+    }
+    h += '</table>';
     return h;
   }
 
