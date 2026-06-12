@@ -7,8 +7,10 @@ pub mod serve;
 pub mod value;
 
 pub use diff::{
-    dcm_diff, dcm_diff_with_metadata, validate_and_build_sources, CalSource, DcmDiff,
-    DcmDiffResult, DiffMetadata, DiffSummary, MapAttr, MapChangeDetail, MapValues,
+    compute_multi_source_diff, dcm_diff, dcm_diff_with_metadata, validate_and_build_sources,
+    CalSource, DcmDiff, DcmDiffResult, DiffMetadata, DiffSummary, MapAttr, MapChangeDetail,
+    MapValues, MultiSourceDiffMetadata, MultiSourceDiffResult, MultiSourceVariableDiff,
+    MultiSourceVariableValue,
 };
 
 use block::Block;

@@ -2,8 +2,8 @@ use chrono::Local;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 use dcm_utils::{
-    dcm_diff_with_metadata, gen, merge_dcm_data, serve, update_dcm_data,
-    validate_and_build_sources, DcmData, DcmDiff,
+    compute_multi_source_diff, dcm_diff_with_metadata, gen, merge_dcm_data, serve,
+    update_dcm_data, validate_and_build_sources, CalSource, DcmData, DcmDiff,
 };
 use env_logger::Builder;
 use std::io::Write;
@@ -125,6 +125,46 @@ enum Commands {
         #[arg(long, default_value_t = false)]
         web: bool,
     },
+    /// Compare variables from a base calibration source against multiple other sources
+    ///
+    /// Only variables present in the base source are compared. Variables not in the base
+    /// are ignored. Each variable is compared across all sources using f32 byte-level comparison.
+    ///
+    /// ## Examples
+    ///
+    /// Compare a base DCM against two other DCM files:
+    ///
+    ///     dcm_utils diff-base --base base.DCM --other source1.DCM --other source2.DCM
+    ///
+    /// Compare an A2L+HEX base against DCM files:
+    ///
+    ///     dcm_utils diff-base --base --a2l cal.a2l -x flash.hex --other modified.DCM
+    DiffBase {
+        /// Base calibration source (DCM file)
+        #[arg(long)]
+        base_dcm: Option<PathBuf>,
+        /// Base calibration source (A2L file, paired with --base-hex)
+        #[arg(long)]
+        base_a2l: Option<PathBuf>,
+        /// Base Intel HEX flash image (paired with --base-a2l)
+        #[arg(long = "base-hex")]
+        base_hex: Option<PathBuf>,
+        /// Other calibration sources (DCM files)
+        #[arg(long)]
+        other_dcm: Vec<PathBuf>,
+        /// Other calibration sources (A2L files, paired with --other-hex)
+        #[arg(long)]
+        other_a2l: Vec<PathBuf>,
+        /// Other Intel HEX flash images (paired with --other-a2l)
+        #[arg(long = "other-hex")]
+        other_hex: Vec<PathBuf>,
+        /// Output JSON file
+        #[arg(short, long, default_value = "diff-base.json")]
+        output: PathBuf,
+        /// Serve diff results as a web page
+        #[arg(long, default_value_t = false)]
+        web: bool,
+    },
     /// Generate DCM file from A2L and HEX calibration files
     ///
     /// Extracts all calibration characteristics from an A2L file and HEX flash image,
@@ -150,6 +190,38 @@ enum Commands {
         #[arg(short, long, default_value = "generated.dcm")]
         output: PathBuf,
     },
+}
+
+/// Build a single CalSource from CLI arguments. Exactly one of dcm or (a2l, hex) must be provided.
+fn build_single_source(
+    label: &str,
+    dcm: &Option<PathBuf>,
+    a2l: &Option<PathBuf>,
+    hex: &Option<PathBuf>,
+) -> Result<CalSource, String> {
+    match (dcm, a2l, hex) {
+        (Some(p), None, None) => Ok(CalSource::Dcm(p.clone())),
+        (None, Some(a), Some(h)) => Ok(CalSource::A2lHex {
+            a2l: a.clone(),
+            hex: h.clone(),
+        }),
+        (None, Some(_), None) => Err(format!(
+            "--{}-a2l requires --{}-hex",
+            label, label
+        )),
+        (None, None, Some(_)) => Err(format!(
+            "--{}-hex requires --{}-a2l",
+            label, label
+        )),
+        (Some(_), Some(_), _) | (Some(_), _, Some(_)) => Err(format!(
+            "Cannot provide both --{}-dcm and --{}-a2l/--{}-hex for the same source",
+            label, label, label
+        )),
+        (None, None, None) => Err(format!(
+            "Must provide either --{}-dcm or --{}-a2l with --{}-hex",
+            label, label, label
+        )),
+    }
 }
 
 fn main() {
@@ -314,6 +386,160 @@ fn main() {
             if web {
                 println!();
                 serve::start(result).unwrap_or_else(|e| {
+                    eprintln!("Server error: {}", e);
+                    std::process::exit(1);
+                });
+            }
+        }
+        Commands::DiffBase {
+            base_dcm,
+            base_a2l,
+            base_hex,
+            other_dcm,
+            other_a2l,
+            other_hex,
+            output,
+            web,
+        } => {
+            // Build base source
+            let base_src = build_single_source("base", &base_dcm, &base_a2l, &base_hex)
+                .unwrap_or_else(|e| {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                });
+
+            // Build other sources from --other-dcm and --other-a2l/--other-hex pairs
+            let mut sources = vec![base_src];
+            for path in &other_dcm {
+                sources.push(CalSource::Dcm(path.clone()));
+            }
+            // Pair --other-a2l with --other-hex by index
+            if other_a2l.len() != other_hex.len() {
+                eprintln!(
+                    "Error: Mismatched --other-a2l ({} provided) and --other-hex ({} provided)",
+                    other_a2l.len(),
+                    other_hex.len()
+                );
+                std::process::exit(1);
+            }
+            for (a, h) in other_a2l.iter().zip(other_hex.iter()) {
+                sources.push(CalSource::A2lHex {
+                    a2l: a.clone(),
+                    hex: h.clone(),
+                });
+            }
+
+            if sources.len() < 2 {
+                eprintln!("Error: At least 2 sources (base + at least 1 other) are required");
+                std::process::exit(1);
+            }
+
+            let result = compute_multi_source_diff(&sources).unwrap_or_else(|e| {
+                eprintln!("Error computing diff: {}", e);
+                std::process::exit(1);
+            });
+
+            // Print summary
+            println!("{}", "=== Multi-Source Diff Results ===".bold());
+            println!(
+                "Base: {}",
+                result.metadata.sources[0].cyan()
+            );
+            for (i, src) in result.metadata.sources[1..].iter().enumerate() {
+                println!("Source {}: {}", i + 1, src.cyan());
+            }
+            println!();
+            println!(
+                "Total variables in base: {}",
+                result.total_variables.to_string().bold()
+            );
+            println!(
+                "Variables with differences: {}",
+                result.variables_with_diffs.to_string().yellow().bold()
+            );
+            println!();
+
+            // Print detailed differences
+            if !result.differences.is_empty() {
+                println!("{}", "=== Variables with Differences ===".bold());
+                for diff in &result.differences {
+                    let missing_sources: Vec<String> = diff
+                        .source_values
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, sv)| !sv.present)
+                        .map(|(i, _)| {
+                            if i == 0 {
+                                "base".to_string()
+                            } else {
+                                format!("source {}", i)
+                            }
+                        })
+                        .collect();
+
+                    let diff_sources: Vec<String> = diff
+                        .source_values
+                        .iter()
+                        .enumerate()
+                        .skip(1)
+                        .filter(|(_, sv)| {
+                            sv.present
+                                && !sv.value.as_ref().is_some_and(|v| {
+                                    v.f32_bytes_eq(
+                                        &diff.source_values[0].value.as_ref().unwrap(),
+                                    )
+                                })
+                        })
+                        .map(|(i, _)| format!("source {}", i))
+                        .collect();
+
+                    let mut parts = Vec::new();
+                    if !missing_sources.is_empty() {
+                        parts.push(format!("missing in [{}]", missing_sources.join(", ")));
+                    }
+                    if !diff_sources.is_empty() {
+                        parts.push(format!(
+                            "differs in [{}]",
+                            diff_sources.join(", ")
+                        ));
+                    }
+                    let desc = if parts.is_empty() {
+                        "has differences".to_string()
+                    } else {
+                        parts.join("; ")
+                    };
+
+                    let prefix = if missing_sources
+                        .iter()
+                        .any(|s| s == "base")
+                    {
+                        "[WARN]".yellow().bold()
+                    } else {
+                        "[CHG]".yellow().bold()
+                    };
+
+                    println!(
+                        "{} {} ({}): {}",
+                        prefix,
+                        diff.name.yellow(),
+                        diff.block_type,
+                        desc
+                    );
+                }
+                println!();
+            }
+
+            // Write JSON output
+            let json = serde_json::to_string_pretty(&result).unwrap();
+            std::fs::write(&output, json).expect("Failed to write diff output");
+            println!(
+                "Diff details written to: {}",
+                output.display().to_string().blue()
+            );
+
+            if web {
+                println!();
+                serve::start_multi_source(result).unwrap_or_else(|e| {
                     eprintln!("Server error: {}", e);
                     std::process::exit(1);
                 });

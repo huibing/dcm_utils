@@ -379,6 +379,132 @@ pub fn dcm_diff_with_metadata(
     DcmDiffResult::new(metadata, differences)
 }
 
+// ===========================================================================
+// Multi-Source Diff (diff-base)
+// ===========================================================================
+
+/// Metadata for a multi-source diff (diff-base) result
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MultiSourceDiffMetadata {
+    /// Labels for all sources, index 0 is the base source
+    pub sources: Vec<String>,
+}
+
+impl MultiSourceDiffMetadata {
+    pub fn new(sources: &[String]) -> Self {
+        Self {
+            sources: sources.to_vec(),
+        }
+    }
+}
+
+/// Per-source value for a variable in multi-source diff
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MultiSourceVariableValue {
+    /// The value (None if source doesn't have this variable)
+    pub value: Option<Value>,
+    /// Whether this variable exists in this source
+    pub present: bool,
+}
+
+/// A single variable difference across all sources in multi-source diff
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MultiSourceVariableDiff {
+    /// Variable name
+    pub name: String,
+    /// Block type description
+    pub block_type: String,
+    /// Values from each source (index 0 = base)
+    pub source_values: Vec<MultiSourceVariableValue>,
+}
+
+/// Result of a multi-source diff (diff-base) comparison
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MultiSourceDiffResult {
+    pub metadata: MultiSourceDiffMetadata,
+    /// Number of variables in the base source
+    pub total_variables: usize,
+    /// Number of variables with differences across sources
+    pub variables_with_diffs: usize,
+    /// Detailed differences
+    pub differences: Vec<MultiSourceVariableDiff>,
+}
+
+/// Compute multi-source diff: compare all sources against a base source.
+/// Only variables present in the base source are compared; variables not
+/// in the base are ignored.
+pub fn compute_multi_source_diff(sources: &[CalSource]) -> Result<MultiSourceDiffResult, Box<dyn Error>> {
+    if sources.len() < 2 {
+        return Err("At least 2 sources (base + at least 1 other) are required".into());
+    }
+
+    // Load all source data
+    let all_data: Vec<DcmData> = sources
+        .iter()
+        .map(|s| s.load())
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let labels: Vec<String> = sources.iter().map(|s| s.label()).collect();
+    let base_data = &all_data[0];
+
+    let mut differences = Vec::new();
+
+    // For each variable in the base source
+    for (var_name, base_block) in &base_data.blocks {
+        let block_type = block_type_name(base_block);
+        let base_value = base_block.get_values().clone();
+
+        let mut source_values = Vec::with_capacity(sources.len());
+        source_values.push(MultiSourceVariableValue {
+            value: Some(base_value),
+            present: true,
+        });
+
+        // Check each other source
+        let mut has_diff = false;
+        for other_data in &all_data[1..] {
+            match other_data.blocks.get(var_name) {
+                Some(other_block) => {
+                    let other_value = other_block.get_values().clone();
+                    // Compare with base using f32 bytes
+                    if !base_block.f32_bytes_eq(other_block) {
+                        has_diff = true;
+                    }
+                    source_values.push(MultiSourceVariableValue {
+                        value: Some(other_value),
+                        present: true,
+                    });
+                }
+                None => {
+                    source_values.push(MultiSourceVariableValue {
+                        value: None,
+                        present: false,
+                    });
+                    has_diff = true; // missing variable counts as a difference
+                }
+            }
+        }
+
+        if has_diff {
+            differences.push(MultiSourceVariableDiff {
+                name: var_name.clone(),
+                block_type: block_type.to_string(),
+                source_values,
+            });
+        }
+    }
+
+    let total_variables = base_data.blocks.len();
+    let variables_with_diffs = differences.len();
+
+    Ok(MultiSourceDiffResult {
+        metadata: MultiSourceDiffMetadata::new(&labels),
+        total_variables,
+        variables_with_diffs,
+        differences,
+    })
+}
+
 /// Helper function to get block type name
 fn block_type_name(block: &Block) -> &'static str {
     match block {

@@ -1,4 +1,4 @@
-use crate::diff::{DcmDiff, DcmDiffResult};
+use crate::diff::{DcmDiff, DcmDiffResult, MultiSourceDiffResult};
 use axum::{
     body::Body,
     extract::State,
@@ -352,6 +352,113 @@ pub fn start(result: DcmDiffResult) -> Result<(), Box<dyn std::error::Error>> {
         println!("Press Ctrl+C to stop");
 
         // Open browser (best-effort)
+        if let Err(e) = open::that(format!("http://localhost:{}", port)) {
+            eprintln!(
+                "Could not open browser automatically: {}. Open the URL manually.",
+                e
+            );
+        }
+
+        axum::serve(listener, router)
+            .with_graceful_shutdown(shutdown_signal())
+            .await?;
+
+        Ok(())
+    })
+}
+
+// ===========================================================================
+// Multi-Source Diff Web Server (diff-base)
+// ===========================================================================
+
+type MultiSourceAppState = Arc<MultiSourceDiffResult>;
+
+/// Register a Handlebars helper that renders a Value in short form
+fn register_multi_source_helpers(reg: &mut Handlebars) {
+    reg.register_helper("format_value", Box::new(
+        |h: &handlebars::Helper,
+         _: &Handlebars,
+         _: &handlebars::Context,
+         _: &mut handlebars::RenderContext,
+         out: &mut dyn handlebars::Output| -> handlebars::HelperResult {
+            let param = h.param(0).and_then(|v| v.value().as_array());
+            match param {
+                Some(arr) if arr.len() == 1 => {
+                    if let Some(n) = arr[0].as_f64() {
+                        out.write(&format_f64(n))?;
+                    } else if let Some(s) = arr[0].as_str() {
+                        out.write(&format!("\"{}\"", s))?;
+                    } else {
+                        out.write("?")?;
+                    }
+                }
+                Some(arr) => {
+                    out.write(&format!("[{} values]", arr.len()))?;
+                }
+                None => {
+                    out.write("(no value)")?;
+                }
+            }
+            Ok(())
+        },
+    ));
+}
+
+fn format_f64(v: f64) -> String {
+    if v.fract() == 0.0 && v.abs() < 1e15 {
+        format!("{:.1}", v)
+    } else {
+        format!("{:.6}", v)
+    }
+}
+
+/// Build an axum Router for serving multi-source diff results
+fn build_multi_source_router(state: MultiSourceAppState) -> Router {
+    Router::new()
+        .route("/", get(multi_source_index))
+        .with_state(state)
+}
+
+/// GET / — render the multi-source diff report as HTML
+async fn multi_source_index(
+    State(state): State<MultiSourceAppState>,
+) -> Result<Response, AppError> {
+    let template = include_str!("serve_multi_source.html.hbs");
+    let mut reg = Handlebars::new();
+    register_multi_source_helpers(&mut reg);
+    reg.register_template_string("report", template)
+        .map_err(|e| AppError::Template(e.to_string()))?;
+
+    let ctx = serde_json::json!(state.as_ref());
+    let html = reg
+        .render("report", &ctx)
+        .map_err(|e| AppError::Template(e.to_string()))?;
+
+    Ok(Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+        .body(Body::from(html))
+        .unwrap())
+}
+
+/// Start the multi-source diff web server
+pub fn start_multi_source(
+    result: MultiSourceDiffResult,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let state = Arc::new(result);
+
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+
+    rt.block_on(async {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let port = listener.local_addr()?.port();
+        let router = build_multi_source_router(state);
+
+        println!("Serving multi-source diff report at http://localhost:{}", port);
+        println!("Press Ctrl+C to stop");
+
         if let Err(e) = open::that(format!("http://localhost:{}", port)) {
             eprintln!(
                 "Could not open browser automatically: {}. Open the URL manually.",

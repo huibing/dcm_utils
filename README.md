@@ -64,6 +64,7 @@ Available commands:
 - `update` - Update a DCM file with data from other files
 - `filter` - Filter variables by regex patterns
 - `diff` - Compare two DCM files
+- `diff-base` - Compare a base source against multiple other sources
 - `gen` - Generate DCM file from A2L and HEX calibration files
 - `help` - Show help information
 
@@ -117,6 +118,33 @@ dcm_utils filter input.DCM --exclude "Temp.*" "Test.*" -o filtered.DCM
 - `-o, --output <OUTPUT>` - Output file path (default: `filtered.dcm`)
 
 **Note:** Either `--include` or `--exclude` must be provided, but not both.
+
+### Diff-Base Command
+
+Compare variables from a base calibration source against multiple other sources. Only variables present in the base source are compared; variables not in the base are ignored. Each variable is compared across all sources using f32 byte-level comparison.
+
+```bash
+# Compare base DCM against two other DCM files
+dcm_utils diff-base --base base.DCM --other source1.DCM --other source2.DCM
+
+# Compare A2L+HEX base against DCM files
+dcm_utils diff-base --base --a2l cal.a2l -x flash.hex --other modified.DCM
+```
+
+**Output:**
+- Console summary listing total variables and those with differences
+- JSON file with per-variable, per-source values
+- Optional web page (`--web`) with labeled sources (Base, Source 1, Source 2, ...)
+
+**Options:**
+- `--base <PATH>` - Base DCM file
+- `--base-a2l <PATH>` - Base A2L file (paired with `--base-hex`)
+- `--base-hex <PATH>` - Base Intel HEX image (paired with `--base-a2l`)
+- `--other <PATH>` - Other DCM file (repeatable)
+- `--other-a2l <PATH>` - Other A2L file (paired with `--other-hex`, repeatable)
+- `--other-hex <PATH>` - Other Intel HEX image (paired with `--other-a2l`)
+- `-o, --output <OUTPUT>` - Output JSON file path (default: `diff-base.json`)
+- `--web` - Serve results as a web page
 
 ### Diff Command
 
