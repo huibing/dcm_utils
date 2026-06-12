@@ -429,7 +429,12 @@ async fn multi_source_index(
     reg.register_template_string("report", template)
         .map_err(|e| AppError::Template(e.to_string()))?;
 
-    let ctx = serde_json::json!(state.as_ref());
+    let mut ctx = serde_json::json!(state.as_ref());
+    let diff_data_json = serde_json::to_string(&ctx).unwrap_or_default();
+    let safe_diff_data_json = diff_data_json.replace("</", "<\\/");
+    ctx.as_object_mut()
+        .unwrap()
+        .insert("diff_data_json".to_string(), serde_json::Value::String(safe_diff_data_json));
     let html = reg
         .render("report", &ctx)
         .map_err(|e| AppError::Template(e.to_string()))?;
