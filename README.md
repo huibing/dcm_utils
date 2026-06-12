@@ -133,6 +133,11 @@ dcm_utils diff --dcm ref.DCM --a2l calibration.a2l -x flash.hex -o diff.json
 dcm_utils diff --a2l v1.a2l -x v1.hex --a2l v2.a2l -x v2.hex -o diff.json
 ```
 
+**Floating-point comparison:**
+- Values are converted to single-precision (f32) and compared byte-by-byte
+- This means two values that differ only below f32 precision (e.g., `1.0` vs `1.0 + 1e-9`) are treated as equal
+- This matches how calibration data is actually stored in ECU flash memory
+
 **Output:**
 - Console summary with color-coded statistics
 - JSON file with detailed differences:
@@ -146,6 +151,7 @@ dcm_utils diff --a2l v1.a2l -x v1.hex --a2l v2.a2l -x v2.hex -o diff.json
 - `--a2l <PATH>` - An A2L calibration description (paired with `--hex` on the same side)
 - `-x, --hex <PATH>` - An Intel HEX flash image (paired with `--a2l` on the same side)
 - `-o, --output <OUTPUT>` - Output JSON file path (default: `diff.json`)
+- `--web` - Serve diff results as a web page
 
 **Example Output:**
 ```

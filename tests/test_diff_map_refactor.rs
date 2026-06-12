@@ -18,7 +18,6 @@ fn test_changedmap_has_structured_output() {
         &modified,
         &CalSource::Dcm(original_path.to_path_buf()),
         &CalSource::Dcm(modified_path.to_path_buf()),
-        false,
     );
 
     // Find MAP_TEST_001 change
@@ -97,7 +96,6 @@ fn test_changedmap_json_is_clean() {
         &modified,
         &CalSource::Dcm(original_path.to_path_buf()),
         &CalSource::Dcm(modified_path.to_path_buf()),
-        false,
     );
 
     let json_output = serde_json::to_string_pretty(&result).expect("Failed to serialize");
@@ -151,7 +149,6 @@ fn test_map_change_detail_populated() {
         &modified,
         &CalSource::Dcm(original_path.to_path_buf()),
         &CalSource::Dcm(modified_path.to_path_buf()),
-        false,
     );
 
     let map_diff = result
@@ -226,7 +223,6 @@ fn test_changedmap_roundtrip() {
         &modified,
         &CalSource::Dcm(original_path.to_path_buf()),
         &CalSource::Dcm(modified_path.to_path_buf()),
-        false,
     );
 
     // Serialize
@@ -270,7 +266,6 @@ fn test_2d_array_values_accessible() {
         &modified,
         &CalSource::Dcm(original_path.to_path_buf()),
         &CalSource::Dcm(modified_path.to_path_buf()),
-        false,
     );
 
     let map_diff = result

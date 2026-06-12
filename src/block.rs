@@ -1,7 +1,7 @@
 use crate::blocks::{
     FESTWERT, FESTWERTEBLOCK, GRUPPENKENNFELD, GRUPPENKENNLINIE, STUETZSTELLENVERTEILUNG,
 };
-use crate::value::approx_eq_f64_slice;
+use crate::value::f32_bytes_eq_slice;
 use crate::value::Value;
 
 #[derive(Clone, Debug)]
@@ -79,20 +79,22 @@ impl Block {
         }
     }
 
-    pub fn approx_eq(&self, other: &Self) -> bool {
+    pub fn f32_bytes_eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Block::Constant(c1), Block::Constant(c2)) => c1.value.approx_eq(&c2.value),
-            (Block::ConstantBlock(b1), Block::ConstantBlock(b2)) => b1.value.approx_eq(&b2.value),
+            (Block::Constant(c1), Block::Constant(c2)) => c1.value.f32_bytes_eq(&c2.value),
+            (Block::ConstantBlock(b1), Block::ConstantBlock(b2)) => {
+                b1.value.f32_bytes_eq(&b2.value)
+            }
             (Block::Table(t1), Block::Table(t2)) => {
-                t1.value.approx_eq(&t2.value)
-                    && approx_eq_f64_slice(&t1.axis, &t2.axis)
+                t1.value.f32_bytes_eq(&t2.value)
+                    && f32_bytes_eq_slice(&t1.axis, &t2.axis)
                     && t1.axis_var_name == t2.axis_var_name
             }
-            (Block::Distribution(d1), Block::Distribution(d2)) => d1.value.approx_eq(&d2.value),
+            (Block::Distribution(d1), Block::Distribution(d2)) => d1.value.f32_bytes_eq(&d2.value),
             (Block::Map(m1), Block::Map(m2)) => {
-                m1.value_flat.approx_eq(&m2.value_flat)
-                    && approx_eq_f64_slice(&m1.x_axis, &m2.x_axis)
-                    && approx_eq_f64_slice(&m1.y_axis, &m2.y_axis)
+                m1.value_flat.f32_bytes_eq(&m2.value_flat)
+                    && f32_bytes_eq_slice(&m1.x_axis, &m2.x_axis)
+                    && f32_bytes_eq_slice(&m1.y_axis, &m2.y_axis)
                     && m1.x_axis_name == m2.x_axis_name
                     && m1.y_axis_name == m2.y_axis_name
             }
@@ -163,7 +165,7 @@ mod tests {
     }
 
     #[rstest]
-    fn test_block_approx_eq_constant() {
+    fn test_block_f32_bytes_eq_constant() {
         let c1 = FESTWERT::from_f64(
             "test".to_string(),
             1.0,
@@ -178,12 +180,12 @@ mod tests {
         );
         let b1 = Block::Constant(c1);
         let b2 = Block::Constant(c2);
-        assert!(b1.approx_eq(&b2));
+        assert!(b1.f32_bytes_eq(&b2));
         assert_ne!(b1, b2);
     }
 
     #[rstest]
-    fn test_block_approx_eq_constant_block() {
+    fn test_block_f32_bytes_eq_constant_block() {
         let cb1 = FESTWERTEBLOCK::from_f64(
             "test_cb".to_string(),
             vec![1.0, 2.0, 3.0],
@@ -198,12 +200,12 @@ mod tests {
         );
         let b1 = Block::ConstantBlock(cb1);
         let b2 = Block::ConstantBlock(cb2);
-        assert!(b1.approx_eq(&b2));
+        assert!(b1.f32_bytes_eq(&b2));
         assert_ne!(b1, b2);
     }
 
     #[rstest]
-    fn test_block_approx_eq_table() {
+    fn test_block_f32_bytes_eq_table() {
         let t1 = GRUPPENKENNLINIE::from_f64(
             "test_tbl",
             &[1.0, 2.0, 3.0],
@@ -224,12 +226,12 @@ mod tests {
         );
         let b1 = Block::Table(t1);
         let b2 = Block::Table(t2);
-        assert!(b1.approx_eq(&b2));
+        assert!(b1.f32_bytes_eq(&b2));
         assert_ne!(b1, b2);
     }
 
     #[rstest]
-    fn test_block_approx_eq_distribution() {
+    fn test_block_f32_bytes_eq_distribution() {
         let d1 = STUETZSTELLENVERTEILUNG::from_f64("test_dist", "desc", &[0.0, 10.0, 20.0], "unit");
         let d2 = STUETZSTELLENVERTEILUNG::from_f64(
             "test_dist",
@@ -239,12 +241,12 @@ mod tests {
         );
         let b1 = Block::Distribution(d1);
         let b2 = Block::Distribution(d2);
-        assert!(b1.approx_eq(&b2));
+        assert!(b1.f32_bytes_eq(&b2));
         assert_ne!(b1, b2);
     }
 
     #[rstest]
-    fn test_block_approx_eq_map() {
+    fn test_block_f32_bytes_eq_map() {
         let map1 = GRUPPENKENNFELD::from_f64(
             "test_map",
             vec![vec![1.0, 2.0], vec![3.0, 4.0]],
@@ -271,7 +273,7 @@ mod tests {
         );
         let b1 = Block::Map(map1);
         let b2 = Block::Map(map2);
-        assert!(b1.approx_eq(&b2));
+        assert!(b1.f32_bytes_eq(&b2));
         assert_ne!(b1, b2);
     }
 

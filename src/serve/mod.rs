@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Shared application state passed to axum handlers.
-type AppState = Arc<(DcmDiffResult, bool)>; // (result, approx)
+type AppState = Arc<DcmDiffResult>;
 
 // ---------------------------------------------------------------------------
 // Helper: extract block type from a diff description string
@@ -142,7 +142,7 @@ fn build_map_change_detail(detail: &crate::diff::MapChangeDetail) -> serde_json:
 
 /// GET / — render the main report page as HTML
 async fn index(State(state): State<AppState>) -> Result<Response, AppError> {
-    let (result, approx) = state.as_ref();
+    let result = state.as_ref();
     let template = include_str!("serve.html.hbs");
     let mut reg = Handlebars::new();
     reg.register_template_string("report", template)
@@ -218,7 +218,6 @@ async fn index(State(state): State<AppState>) -> Result<Response, AppError> {
     let ctx = serde_json::json!({
         "metadata": result.metadata,
         "summary": result.summary,
-        "approx": approx,
         "new_items": new_items,
         "deleted_items": deleted_items,
         "changed_items": changed_items,
@@ -239,21 +238,21 @@ async fn index(State(state): State<AppState>) -> Result<Response, AppError> {
 
 /// GET /export/new — CSV of new variable names
 async fn export_new(State(state): State<AppState>) -> Response {
-    csv_response("new_variables.csv", &state.0.differences, |d| {
+    csv_response("new_variables.csv", &state.differences, |d| {
         matches!(d, DcmDiff::New { .. })
     })
 }
 
 /// GET /export/deleted — CSV of deleted variable names
 async fn export_deleted(State(state): State<AppState>) -> Response {
-    csv_response("deleted_variables.csv", &state.0.differences, |d| {
+    csv_response("deleted_variables.csv", &state.differences, |d| {
         matches!(d, DcmDiff::Deleted { .. })
     })
 }
 
 /// GET /export/changed — CSV of changed variable names
 async fn export_changed(State(state): State<AppState>) -> Response {
-    csv_response("changed_variables.csv", &state.0.differences, |d| {
+    csv_response("changed_variables.csv", &state.differences, |d| {
         matches!(d, DcmDiff::Changed { .. } | DcmDiff::ChangedMap { .. })
     })
 }
@@ -336,8 +335,8 @@ fn build_router(state: AppState) -> Router {
 
 /// Start the web server on a random free port, open the browser, and block
 /// until Ctrl+C. Returns Ok(()) on graceful shutdown.
-pub fn start(result: DcmDiffResult, approx: bool) -> Result<(), Box<dyn std::error::Error>> {
-    let state = Arc::new((result, approx));
+pub fn start(result: DcmDiffResult) -> Result<(), Box<dyn std::error::Error>> {
+    let state = Arc::new(result);
 
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -496,7 +495,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_index_returns_200_with_html() {
-        let state = Arc::new((make_result(), false));
+        let state = Arc::new(make_result());
         let router = build_router(state);
 
         let request = Request::builder()
@@ -523,7 +522,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_export_new_csv() {
-        let state = Arc::new((make_result(), false));
+        let state = Arc::new(make_result());
         let router = build_router(state);
 
         let request = Request::builder()
@@ -544,7 +543,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_export_deleted_csv() {
-        let state = Arc::new((make_result(), false));
+        let state = Arc::new(make_result());
         let router = build_router(state);
         let request = Request::builder()
             .uri("/export/deleted")
@@ -561,7 +560,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_export_changed_csv() {
-        let state = Arc::new((make_result(), false));
+        let state = Arc::new(make_result());
         let router = build_router(state);
 
         let request = Request::builder()
