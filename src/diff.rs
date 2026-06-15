@@ -405,6 +405,12 @@ pub struct MultiSourceVariableValue {
     pub value: Option<Value>,
     /// Whether this variable exists in this source
     pub present: bool,
+    /// X-axis breakpoints (for GRUPPENKENNFELD)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub x_axis: Option<Vec<f64>>,
+    /// Y-axis breakpoints (for GRUPPENKENNFELD)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub y_axis: Option<Vec<f64>>,
 }
 
 /// A single variable difference across all sources in multi-source diff
@@ -416,6 +422,18 @@ pub struct MultiSourceVariableDiff {
     pub block_type: String,
     /// Values from each source (index 0 = base)
     pub source_values: Vec<MultiSourceVariableValue>,
+    /// X dimension (columns) for GRUPPENKENNFELD
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dim_x: Option<usize>,
+    /// Y dimension (rows) for GRUPPENKENNFELD
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dim_y: Option<usize>,
+    /// X-axis variable name (for GRUPPENKENNFELD)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub x_axis_name: Option<String>,
+    /// Y-axis variable name (for GRUPPENKENNFELD)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub y_axis_name: Option<String>,
 }
 
 /// Result of a multi-source diff (diff-base) comparison
@@ -454,10 +472,25 @@ pub fn compute_multi_source_diff(sources: &[CalSource]) -> Result<MultiSourceDif
         let block_type = block_type_name(base_block);
         let base_value = base_block.get_values().clone();
 
-        let mut source_values = Vec::with_capacity(sources.len());
+        // Extract MAP metadata if applicable
+        let (base_x_axis, base_y_axis, dim_x, dim_y, x_axis_name, y_axis_name) = match base_block {
+            Block::Map(m) => (
+                Some(m.x_axis.clone()),
+                Some(m.y_axis.clone()),
+                Some(m.dim.0),
+                Some(m.dim.1),
+                Some(m.x_axis_name.clone()),
+                Some(m.y_axis_name.clone()),
+            ),
+            _ => (None, None, None, None, None, None),
+        };
+
+        let mut source_values: Vec<MultiSourceVariableValue> = Vec::with_capacity(sources.len());
         source_values.push(MultiSourceVariableValue {
             value: Some(base_value),
             present: true,
+            x_axis: base_x_axis,
+            y_axis: base_y_axis,
         });
 
         // Check each other source
@@ -470,15 +503,23 @@ pub fn compute_multi_source_diff(sources: &[CalSource]) -> Result<MultiSourceDif
                     if !base_block.f32_bytes_eq(other_block) {
                         has_diff = true;
                     }
+                    let (ox, oy) = match other_block {
+                        Block::Map(m) => (Some(m.x_axis.clone()), Some(m.y_axis.clone())),
+                        _ => (None, None),
+                    };
                     source_values.push(MultiSourceVariableValue {
                         value: Some(other_value),
                         present: true,
+                        x_axis: ox,
+                        y_axis: oy,
                     });
                 }
                 None => {
                     source_values.push(MultiSourceVariableValue {
                         value: None,
                         present: false,
+                        x_axis: None,
+                        y_axis: None,
                     });
                     has_diff = true; // missing variable counts as a difference
                 }
@@ -490,6 +531,10 @@ pub fn compute_multi_source_diff(sources: &[CalSource]) -> Result<MultiSourceDif
                 name: var_name.clone(),
                 block_type: block_type.to_string(),
                 source_values,
+                dim_x,
+                dim_y,
+                x_axis_name,
+                y_axis_name,
             });
         }
     }

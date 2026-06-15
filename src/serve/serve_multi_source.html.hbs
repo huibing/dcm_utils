@@ -256,13 +256,24 @@
       }
     }
 
-    // Build per-source value table
     var html = '';
+
+    // Metadata section
+    var isMap = diff.block_type === 'GRUPPENKENNFELD' && diff.dim_x != null;
+    if (isMap) {
+      html += '<div class="cmp-section-label">Map Details</div>';
+      html += '<table class="cmp-table">';
+      html += '<tr><td class="cmp-label">Dimensions</td><td>' + diff.dim_x + ' × ' + diff.dim_y + '</td></tr>';
+      if (diff.x_axis_name) { html += '<tr><td class="cmp-label">X-Axis</td><td>' + diff.x_axis_name + ' (' + diff.dim_x + ' pts)</td></tr>'; }
+      if (diff.y_axis_name) { html += '<tr><td class="cmp-label">Y-Axis</td><td>' + diff.y_axis_name + ' (' + diff.dim_y + ' pts)</td></tr>'; }
+      html += '</table>';
+    }
 
     if (maxLen <= 1) {
       // Scalar: show single row per source, compare with base
       var baseVal = sources[0].present && sources[0].value && sources[0].value.length > 0
         ? sources[0].value[0] : undefined;
+      html += '<div class="cmp-section-label">Values</div>';
       html += '<table class="cmp-table">';
       html += '<tr><th>Source</th><th>Value</th></tr>';
       for (var s = 0; s < numSources; s++) {
@@ -278,8 +289,57 @@
         }
       }
       html += '</table>';
+    } else if (isMap && diff.dim_x && diff.dim_y) {
+      // 2D MAP grid: render one grid per source stacked vertically
+      for (var s = 0; s < numSources; s++) {
+        var sv = sources[s];
+        html += '<div class="cmp-section-label">' + sourceLabels[s] + '</div>';
+        if (!sv.present) {
+          html += '<p class="cmp-missing">(missing)</p>';
+          continue;
+        }
+        if (!sv.value || sv.value.length === 0) {
+          html += '<p class="cmp-missing">(no value)</p>';
+          continue;
+        }
+
+        var vals = sv.value;
+        var dx = diff.dim_x;
+        var dy = diff.dim_y;
+        var xAxis = sv.x_axis || [];
+        var yAxis = sv.y_axis || [];
+
+        html += '<table class="cmp-table" style="font-size:.8rem;">';
+        // Header row: X-axis values
+        html += '<tr><td class="cmp-label" style="min-width:30px;"></td>';
+        for (var x = 0; x < dx && x < xAxis.length; x++) {
+          html += '<th>' + fmt(xAxis[x]) + '</th>';
+        }
+        html += '</tr>';
+
+        // Data rows
+        for (var y = 0; y < dy; y++) {
+          html += '<tr>';
+          // Y-axis label
+          html += '<td class="cmp-label">' + (yAxis[y] !== undefined ? fmt(yAxis[y]) : '') + '</td>';
+          for (var x = 0; x < dx; x++) {
+            var idx = y * dx + x;
+            if (idx < vals.length) {
+              // Compare with base source at same position
+              var baseValAtPos = sources[0].present && sources[0].value ? sources[0].value[idx] : undefined;
+              var isSame = (s === 0) || (baseValAtPos !== undefined && vals[idx] === baseValAtPos);
+              var cls = isSame ? 'cmp-same' : 'cmp-diff';
+              html += '<td class="' + cls + '">' + fmt(vals[idx]) + '</td>';
+            } else {
+              html += '<td class="cmp-missing">&mdash;</td>';
+            }
+          }
+          html += '</tr>';
+        }
+        html += '</table>';
+      }
     } else {
-      // Multi-value: show table with all sources as columns
+      // Multi-value flat: show table with all sources as columns
       html += '<div class="cmp-section-label">Values</div>';
       html += '<table class="cmp-table">';
       html += '<tr><th>#</th>';
