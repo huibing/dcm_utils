@@ -110,6 +110,28 @@
     text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; margin-top: 16px;
   }
   .cmp-summary { font-size: .8rem; margin-top: 8px; }
+
+  /* Filter toolbar */
+  .filter-bar {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    margin: 1rem 0; padding: 10px 16px;
+    background: #181825; border-radius: 8px; border: 1px solid #313244;
+  }
+  .filter-bar input {
+    background: #1e1e2e; border: 1px solid #45475a; color: #cdd6f4;
+    padding: 6px 12px; border-radius: 4px; font-family: inherit; font-size: .9rem;
+    outline: none; min-width: 200px;
+  }
+  .filter-bar input:focus { border-color: #89b4fa; }
+  .filter-bar input::placeholder { color: #6c7086; }
+  .filter-btn {
+    background: none; border: 1px solid #45475a; color: #a6adc8;
+    padding: 6px 14px; border-radius: 4px; cursor: pointer; font-family: inherit; font-size: .85rem;
+  }
+  .filter-btn:hover { border-color: #89b4fa; color: #cdd6f4; }
+  .filter-btn.active { background: #89b4fa; color: #1e1e2e; border-color: #89b4fa; font-weight: 600; }
+  .type-btn { font-size: .8rem; padding: 4px 10px; }
+  .filter-count { margin-left: auto; color: #6c7086; font-size: .85rem; }
 </style>
 </head>
 <body>
@@ -140,6 +162,16 @@
   </div>
 </div>
 
+<!-- Filter Bar -->
+<div class="filter-bar" id="filter-bar">
+  <input type="text" id="filter-search" placeholder="Filter by name..." />
+  <button class="filter-btn active" data-filter="all">All</button>
+  <button class="filter-btn" data-filter="diff">Diffs Only</button>
+  <span style="color:#6c7086;font-size:.85rem;">|</span>
+  <button class="filter-btn type-btn active" data-type="*">All Types</button>
+  <span class="filter-count" id="filter-count"></span>
+</div>
+
 <!-- Variables Table -->
 {{#if differences}}
 <h2>All Base Variables ({{total_variables}})</h2>
@@ -157,7 +189,7 @@
   </thead>
   <tbody>
     {{#each differences}}
-    <tr class="{{#if has_diff}}row-diff{{else}}row-match{{/if}}">
+    <tr class="{{#if has_diff}}row-diff{{else}}row-match{{/if}}" data-name="{{name}}" data-type="{{block_type}}">
       <td class="col-name"><span class="changed-name" data-name="{{name}}">{{name}}</span></td>
       <td class="col-type">{{block_type}}</td>
       <td>{{#if has_diff}}<span class="val-diff">✗</span>{{else}}<span class="val-same">✓</span>{{/if}}</td>
@@ -228,6 +260,112 @@
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape' && modal.classList.contains('show')) closeModal();
   });
+
+  // ── Filtering ──────────────────────────────────────────────
+  var filterMode = 'all';
+  var filterType = '*';
+  var filterText = '';
+
+  var searchInput = document.getElementById('filter-search');
+  var countEl = document.getElementById('filter-count');
+  var rows = document.querySelectorAll('.diff-table tbody tr');
+
+  // Collect unique block types and build buttons dynamically
+  var typeSet = {};
+  for (var i = 0; i < rows.length; i++) {
+    var t = rows[i].getAttribute('data-type');
+    if (t) typeSet[t] = true;
+  }
+  var typeBar = document.getElementById('filter-bar');
+  var sortedTypes = Object.keys(typeSet).sort();
+  for (var i = 0; i < sortedTypes.length; i++) {
+    var btn = document.createElement('button');
+    btn.className = 'filter-btn type-btn active';
+    btn.setAttribute('data-type', sortedTypes[i]);
+    btn.textContent = sortedTypes[i];
+    btn.addEventListener('click', onTypeClick);
+    typeBar.insertBefore(btn, countEl);
+  }
+
+  // Mode filter buttons
+  searchInput.addEventListener('input', applyFilter);
+  var filterBtns = document.querySelectorAll('.filter-btn[data-filter]');
+  for (var i = 0; i < filterBtns.length; i++) {
+    filterBtns[i].addEventListener('click', function() {
+      filterBtns.forEach(function(b) { b.classList.remove('active'); });
+      this.classList.add('active');
+      filterMode = this.getAttribute('data-filter');
+      applyFilter();
+    });
+  }
+
+  // "All Types" button
+  var allTypesBtn = document.querySelector('.filter-btn[data-type="*"]');
+  if (allTypesBtn) {
+    allTypesBtn.addEventListener('click', function() {
+      var allTypeBtns = document.querySelectorAll('.filter-btn[data-type]');
+      allTypeBtns.forEach(function(b) {
+        if (b.getAttribute('data-type') === '*') b.classList.add('active');
+        else b.classList.remove('active');
+      });
+      filterType = '*';
+      applyFilter();
+    });
+  }
+
+  function onTypeClick() {
+    this.classList.toggle('active');
+    if (this.getAttribute('data-type') === '*') {
+      var allTypeBtns = document.querySelectorAll('.filter-btn[data-type]');
+      allTypeBtns.forEach(function(b) {
+        if (b !== this) b.classList.remove('active');
+      }.bind(this));
+      filterType = '*';
+    } else {
+      var star = document.querySelector('.filter-btn[data-type="*"]');
+      if (star) star.classList.remove('active');
+      var activeTypes = [];
+      var allTypeBtns = document.querySelectorAll('.filter-btn[data-type]');
+      allTypeBtns.forEach(function(b) {
+        if (b.classList.contains('active') && b.getAttribute('data-type') !== '*') {
+          activeTypes.push(b.getAttribute('data-type'));
+        }
+      });
+      if (activeTypes.length === 0) {
+        if (star) star.classList.add('active');
+        filterType = '*';
+      } else {
+        filterType = activeTypes;
+      }
+    }
+    applyFilter();
+  }
+
+  function applyFilter() {
+    filterText = searchInput.value.toLowerCase().trim();
+    var visible = 0;
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      var name = r.getAttribute('data-name').toLowerCase();
+      var type = r.getAttribute('data-type');
+      var hasDiff = r.classList.contains('row-diff');
+      var show = true;
+      if (filterText && name.indexOf(filterText) === -1) show = false;
+      if (filterMode === 'diff' && !hasDiff) show = false;
+      if (filterType !== '*') {
+        if (Array.isArray(filterType)) {
+          if (filterType.indexOf(type) === -1) show = false;
+        } else {
+          if (type !== filterType) show = false;
+        }
+      }
+      r.style.display = show ? '' : 'none';
+      if (show) visible++;
+    }
+    countEl.textContent = visible + ' / ' + rows.length + ' shown';
+  }
+
+  applyFilter();
 
   function showModal(name) {
     var diff = diffData && diffData.differences.find(function(d) { return d.name === name; });

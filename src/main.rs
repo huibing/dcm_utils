@@ -161,6 +161,9 @@ enum Commands {
         /// Output JSON file
         #[arg(short, long, default_value = "diff-base.json")]
         output: PathBuf,
+        /// Display mode: 'diff' (changes only) or 'all' (all base variables)
+        #[arg(long, default_value = "all")]
+        show: String,
         /// Serve diff results as a web page
         #[arg(long, default_value_t = false)]
         web: bool,
@@ -399,6 +402,7 @@ fn main() {
             other_a2l,
             other_hex,
             output,
+            show,
             web,
         } => {
             // Build base source
@@ -459,9 +463,17 @@ fn main() {
             );
             println!();
 
-            // Print all base variables with comparison status
-            println!("{}", "=== All Base Variables ===".bold());
+            // Print variables based on --show mode
+            let show_all = show == "all";
+            if show_all {
+                println!("{}", "=== All Base Variables ===".bold());
+            } else {
+                println!("{}", "=== Variables with Differences ===".bold());
+            }
             for diff in &result.differences {
+                if !show_all && !diff.has_diff {
+                    continue;
+                }
                 let missing_sources: Vec<String> = diff
                     .source_values
                     .iter()
