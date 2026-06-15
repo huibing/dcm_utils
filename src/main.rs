@@ -459,75 +459,57 @@ fn main() {
             );
             println!();
 
-            // Print detailed differences
-            if !result.differences.is_empty() {
-                println!("{}", "=== Variables with Differences ===".bold());
-                for diff in &result.differences {
-                    let missing_sources: Vec<String> = diff
-                        .source_values
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, sv)| !sv.present)
-                        .map(|(i, _)| {
-                            if i == 0 {
-                                "base".to_string()
-                            } else {
-                                format!("source {}", i)
-                            }
-                        })
-                        .collect();
+            // Print all base variables with comparison status
+            println!("{}", "=== All Base Variables ===".bold());
+            for diff in &result.differences {
+                let missing_sources: Vec<String> = diff
+                    .source_values
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, sv)| !sv.present)
+                    .map(|(i, _)| {
+                        if i == 0 { "base".to_string() } else { format!("source {}", i) }
+                    })
+                    .collect();
 
-                    let diff_sources: Vec<String> = diff
-                        .source_values
-                        .iter()
-                        .enumerate()
-                        .skip(1)
-                        .filter(|(_, sv)| {
-                            sv.present
-                                && !sv.value.as_ref().is_some_and(|v| {
-                                    v.f32_bytes_eq(
-                                        &diff.source_values[0].value.as_ref().unwrap(),
-                                    )
-                                })
-                        })
-                        .map(|(i, _)| format!("source {}", i))
-                        .collect();
+                let diff_sources: Vec<String> = diff
+                    .source_values
+                    .iter()
+                    .enumerate()
+                    .skip(1)
+                    .filter(|(_, sv)| {
+                        sv.present
+                            && !sv.value.as_ref().is_some_and(|v| {
+                                v.f32_bytes_eq(&diff.source_values[0].value.as_ref().unwrap())
+                            })
+                    })
+                    .map(|(i, _)| format!("source {}", i))
+                    .collect();
 
+                let (prefix, desc) = if !diff.has_diff {
+                    ("[OK]".green().bold(), "all match".to_string())
+                } else if missing_sources.iter().any(|s| s == "base") {
+                    ("[WARN]".yellow().bold(), "missing in [base]".to_string())
+                } else {
                     let mut parts = Vec::new();
                     if !missing_sources.is_empty() {
                         parts.push(format!("missing in [{}]", missing_sources.join(", ")));
                     }
                     if !diff_sources.is_empty() {
-                        parts.push(format!(
-                            "differs in [{}]",
-                            diff_sources.join(", ")
-                        ));
+                        parts.push(format!("differs in [{}]", diff_sources.join(", ")));
                     }
-                    let desc = if parts.is_empty() {
-                        "has differences".to_string()
-                    } else {
-                        parts.join("; ")
-                    };
+                    ("[CHG]".yellow().bold(), parts.join("; "))
+                };
 
-                    let prefix = if missing_sources
-                        .iter()
-                        .any(|s| s == "base")
-                    {
-                        "[WARN]".yellow().bold()
-                    } else {
-                        "[CHG]".yellow().bold()
-                    };
-
-                    println!(
-                        "{} {} ({}): {}",
-                        prefix,
-                        diff.name.yellow(),
-                        diff.block_type,
-                        desc
-                    );
-                }
-                println!();
+                println!(
+                    "{} {} ({}){}",
+                    prefix,
+                    diff.name.yellow(),
+                    diff.block_type,
+                    if desc.is_empty() { String::new() } else { format!(": {}", desc) }
+                );
             }
+            println!();
 
             // Write JSON output
             let json = serde_json::to_string_pretty(&result).unwrap();

@@ -45,13 +45,21 @@
   .col-type { width: 100px; color: #a6adc8; }
   .val-present { color: #a6e3a1; }
   .val-missing { color: #f38ba8; font-style: italic; }
+  .val-same { color: #585b70; }
+  .val-diff { color: #f9e2af; }
   .val-trunc {
     max-width: 200px; overflow: hidden; text-overflow: ellipsis;
     white-space: nowrap; display: inline-block; vertical-align: bottom;
   }
+  .row-match td { color: #585b70; }
+  .row-match .col-name { color: #6c7086; }
+  .row-match:hover td { background: rgba(108,112,134,0.05); }
+  .row-diff td { color: #cdd6f4; }
   .changed-name {
     cursor: pointer; border-bottom: 1px dashed #f9e2af; color: #f9e2af;
   }
+  .row-match .changed-name { color: #6c7086; border-color: #585b70; }
+  .row-match .changed-name:hover { text-shadow: 0 0 4px #6c7086; }
   .changed-name:hover { text-shadow: 0 0 8px #f9e2af; }
   .changed-name:hover::after { content: ' ▸'; font-weight: 700; }
   .footer { margin-top: 3rem; text-align: center; color: #6c7086; font-size: .8rem; }
@@ -132,15 +140,16 @@
   </div>
 </div>
 
-<!-- Differences Table -->
+<!-- Variables Table -->
 {{#if differences}}
-<h2>Variables with Differences</h2>
+<h2>All Base Variables ({{total_variables}})</h2>
 <div style="overflow-x: auto;">
 <table class="diff-table">
   <thead>
     <tr>
       <th class="col-name">Variable</th>
       <th class="col-type">Type</th>
+      <th style="width:80px;">Status</th>
       {{#each metadata.sources}}
       <th>{{#if @first}}Base{{else}}Source {{@index}}{{/if}}</th>
       {{/each}}
@@ -148,9 +157,10 @@
   </thead>
   <tbody>
     {{#each differences}}
-    <tr>
+    <tr class="{{#if has_diff}}row-diff{{else}}row-match{{/if}}">
       <td class="col-name"><span class="changed-name" data-name="{{name}}">{{name}}</span></td>
       <td class="col-type">{{block_type}}</td>
+      <td>{{#if has_diff}}<span class="val-diff">✗</span>{{else}}<span class="val-same">✓</span>{{/if}}</td>
       {{#each source_values}}
       <td>
         {{#if present}}

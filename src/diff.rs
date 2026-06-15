@@ -420,6 +420,8 @@ pub struct MultiSourceVariableDiff {
     pub name: String,
     /// Block type description
     pub block_type: String,
+    /// Whether this variable actually differs across sources
+    pub has_diff: bool,
     /// Values from each source (index 0 = base)
     pub source_values: Vec<MultiSourceVariableValue>,
     /// X dimension (columns) for GRUPPENKENNFELD
@@ -526,21 +528,20 @@ pub fn compute_multi_source_diff(sources: &[CalSource]) -> Result<MultiSourceDif
             }
         }
 
-        if has_diff {
-            differences.push(MultiSourceVariableDiff {
-                name: var_name.clone(),
-                block_type: block_type.to_string(),
-                source_values,
-                dim_x,
-                dim_y,
-                x_axis_name,
-                y_axis_name,
-            });
-        }
+        differences.push(MultiSourceVariableDiff {
+            name: var_name.clone(),
+            block_type: block_type.to_string(),
+            has_diff,
+            source_values,
+            dim_x,
+            dim_y,
+            x_axis_name,
+            y_axis_name,
+        });
     }
 
     let total_variables = base_data.blocks.len();
-    let variables_with_diffs = differences.len();
+    let variables_with_diffs = differences.iter().filter(|d| d.has_diff).count();
 
     Ok(MultiSourceDiffResult {
         metadata: MultiSourceDiffMetadata::new(&labels),
