@@ -1,5 +1,7 @@
 # DCM Utils
 
+English | [中文](README_zh.md)
+
 A Rust-based command-line tool for parsing, manipulating, and comparing DCM (DAMOS Calibration Memory) files used in automotive ECU calibration.
 
 ## Overview
@@ -13,6 +15,7 @@ DCM Utils is a powerful utility designed for automotive engineers working with E
 - **🔄 Update**: Apply calibration changes from one or more DCM files to a base file
 - **🔍 Filter**: Include or exclude variables using regex patterns
 - **📊 Diff**: Compare two DCM files and identify differences
+- **🌐 Diff-Base Web UI**: Interactive web page for multi-source comparison with merged/separated MAP views and cross-source cell highlighting
 - **🔧 Gen**: Generate DCM files from A2L calibration descriptions and Intel HEX flash images
 - **📝 Output**: Generate well-formatted DCM files using Handlebars templates
 
@@ -136,7 +139,14 @@ dcm_utils diff-base --base --a2l cal.a2l -x flash.hex --other modified.DCM
 - JSON file with per-variable, per-source values
 - Optional web page (`--web`) with labeled sources (Base, Source 1, Source 2, ...)
 
-**Options:**
+**Web UI Features:**
+- Defaults to showing only variables with differences; switch to "All" to see every variable
+- Filter by variable name or block type (FESTWERT, GRUPPENKENNFELD, etc.)
+- Click any variable name to open a detail modal
+- **MAP (2D) variables** offer two views:
+  - **Merged** (default): All source values stacked in a single grid, color-coded per source with a legend bar; axis points (X/Y) are also merged so axis differences are visible
+  - **Separated**: One grid per source stacked vertically; hovering a cell highlights the corresponding cell across all other source grids
+- Values matching the base source are dimmed; differing values are bold and highlighted
 - `--base <PATH>` - Base DCM file
 - `--base-a2l <PATH>` - Base A2L file (paired with `--base-hex`)
 - `--base-hex <PATH>` - Base Intel HEX image (paired with `--base-a2l`)
@@ -144,6 +154,7 @@ dcm_utils diff-base --base --a2l cal.a2l -x flash.hex --other modified.DCM
 - `--other-a2l <PATH>` - Other A2L file (paired with `--other-hex`, repeatable)
 - `--other-hex <PATH>` - Other Intel HEX image (paired with `--other-a2l`)
 - `-o, --output <OUTPUT>` - Output JSON file path (default: `diff-base.json`)
+- `--show <MODE>` - Display mode: `diff` (changes only) or `all` (all base variables, default: `all`)
 - `--web` - Serve results as a web page
 
 ### Diff Command
