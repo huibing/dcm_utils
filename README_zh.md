@@ -399,7 +399,7 @@ dcm_utils filter dataset.DCM --exclude ".*Temp.*" ".*Test.*" -o clean.DCM
 
 ## 许可证
 
-[在此指定许可证]
+[MIT]
 
 ## 贡献
 

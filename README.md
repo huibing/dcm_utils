@@ -397,7 +397,7 @@ Test data is located in `./test-dcms/` directory.
 
 ## License
 
-[Specify your license here]
+[MIT]
 
 ## Contributing
 
