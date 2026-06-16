@@ -105,11 +105,80 @@
   .cmp-same  { color: #585b70; }
   .cmp-diff  { color: #f9e2af; }
   .cmp-missing { color: #f38ba8; font-style: italic; }
+  /* Map cell cross-source highlight */
+  .map-grid td[data-cell] { cursor: crosshair; transition: background 0.05s ease, outline 0.05s ease; }
+  .map-grid td[data-cell]:hover,
+  .map-grid td.cell-peer-highlight {
+    background: rgba(137,180,250,0.18);
+    outline: 1px solid #89b4fa;
+    outline-offset: -1px;
+  }
+  .map-grid td.cell-peer-highlight.cmp-diff,
+  .map-grid td[data-cell]:hover.cmp-diff {
+    background: rgba(249,226,175,0.28);
+    outline-color: #f9e2af;
+  }
   .cmp-section-label {
     color: #89b4fa; font-size: .8rem; font-weight: 600;
     text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; margin-top: 16px;
   }
   .cmp-summary { font-size: .8rem; margin-top: 8px; }
+
+  /* View toggle button in modal header */
+  .view-toggle-btn {
+    background: none; border: 1px solid #45475a; color: #a6adc8; font-size: .78rem;
+    cursor: pointer; padding: 3px 12px; border-radius: 4px; font-family: inherit;
+    margin-right: 10px;
+  }
+  .view-toggle-btn:hover { border-color: #89b4fa; color: #cdd6f4; }
+  .view-toggle-btn.active { background: #89b4fa; color: #1e1e2e; border-color: #89b4fa; font-weight: 600; }
+
+  /* Source colors for compact view */
+  .src-color-0 { color: #89b4fa; }
+  .src-color-1 { color: #a6e3a1; }
+  .src-color-2 { color: #f9e2af; }
+  .src-color-3 { color: #f38ba8; }
+  .src-color-4 { color: #cba6f7; }
+  .src-color-5 { color: #94e2d5; }
+  .src-color-6 { color: #fab387; }
+  .src-color-7 { color: #f5c2e7; }
+
+  /* Compact merged map grid */
+  .compact-map-grid { width: 100%; border-collapse: collapse; font-size: .78rem; border: 1px solid #313244; }
+  .compact-map-grid th {
+    background: #313244; padding: 6px 8px; text-align: center;
+    font-weight: 600; color: #a6adc8; white-space: nowrap; font-size: .75rem;
+  }
+  .compact-map-grid td {
+    padding: 3px 6px; border: 1px solid #313244; text-align: center; vertical-align: middle;
+  }
+  .compact-map-grid .cmp-label { text-align: right; font-size: .75rem; }
+  .compact-cell { display: flex; flex-direction: column; gap: 1px; min-width: 48px; }
+  .compact-cell .src-val {
+    font-family: 'SFMono-Regular', 'Consolas', monospace;
+    font-size: .72rem; line-height: 1.3; white-space: nowrap;
+  }
+  .compact-cell .src-val.src-same { opacity: 0.35; }
+  .compact-cell .src-val.src-diff { font-weight: 700; }
+
+  /* Color legend */
+  .color-legend {
+    display: flex; gap: 14px; flex-wrap: wrap; margin: 10px 0 4px;
+    padding: 8px 14px; background: #11111b; border-radius: 6px; font-size: .78rem;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-swatch {
+    width: 14px; height: 14px; border-radius: 3px; display: inline-block;
+  }
+  .legend-swatch.swatch-0 { background: #89b4fa; }
+  .legend-swatch.swatch-1 { background: #a6e3a1; }
+  .legend-swatch.swatch-2 { background: #f9e2af; }
+  .legend-swatch.swatch-3 { background: #f38ba8; }
+  .legend-swatch.swatch-4 { background: #cba6f7; }
+  .legend-swatch.swatch-5 { background: #94e2d5; }
+  .legend-swatch.swatch-6 { background: #fab387; }
+  .legend-swatch.swatch-7 { background: #f5c2e7; }
+  .legend-label { color: #cdd6f4; }
 
   /* Filter toolbar */
   .filter-bar {
@@ -165,8 +234,8 @@
 <!-- Filter Bar -->
 <div class="filter-bar" id="filter-bar">
   <input type="text" id="filter-search" placeholder="Filter by name..." />
-  <button class="filter-btn active" data-filter="all">All</button>
-  <button class="filter-btn" data-filter="diff">Diffs Only</button>
+  <button class="filter-btn" data-filter="all">All</button>
+  <button class="filter-btn active" data-filter="diff">Diffs Only</button>
   <span style="color:#6c7086;font-size:.85rem;">|</span>
   <button class="filter-btn type-btn active" data-type="*">All Types</button>
   <span class="filter-count" id="filter-count"></span>
@@ -222,6 +291,7 @@
   <div class="modal-content">
     <div class="modal-header">
       <span class="modal-title"></span>
+      <span id="modal-toggle-area"></span>
       <button class="modal-close" title="Close (Esc)">[x]</button>
     </div>
     <div class="modal-body"></div>
@@ -262,7 +332,7 @@
   });
 
   // ── Filtering ──────────────────────────────────────────────
-  var filterMode = 'all';
+  var filterMode = 'diff';
   var filterType = '*';
   var filterText = '';
 
@@ -370,10 +440,73 @@
   function showModal(name) {
     var diff = diffData && diffData.differences.find(function(d) { return d.name === name; });
     if (!diff) return;
+    currentDiff = diff;
+    currentView = 'merged';
     modalTitle.textContent = name + ' — ' + diff.block_type;
+    updateToggleArea(diff);
     modalBody.innerHTML = renderMultiSourceDetail(diff);
     modal.classList.add('show');
     modal.scrollTop = 0;
+    bindMapCellHighlight();
+  }
+
+  var currentDiff = null;
+  var currentView = 'merged';
+  var toggleArea = document.getElementById('modal-toggle-area');
+
+  function updateToggleArea(diff) {
+    toggleArea.innerHTML = '';
+    if (!diff) return;
+    var isMap = diff.block_type === 'GRUPPENKENNFELD' && diff.dim_x != null;
+    if (!isMap) return;
+    var btnSep = document.createElement('button');
+    btnSep.className = 'view-toggle-btn' + (currentView === 'separated' ? ' active' : '');
+    btnSep.textContent = 'Separated';
+    btnSep.addEventListener('click', function() {
+      if (currentView === 'separated') return;
+      currentView = 'separated';
+      updateToggleArea(currentDiff);
+      modalBody.innerHTML = renderMultiSourceDetail(currentDiff);
+      bindMapCellHighlight();
+    });
+    var btnMrg = document.createElement('button');
+    btnMrg.className = 'view-toggle-btn' + (currentView === 'merged' ? ' active' : '');
+    btnMrg.textContent = 'Merged';
+    btnMrg.addEventListener('click', function() {
+      if (currentView === 'merged') return;
+      currentView = 'merged';
+      updateToggleArea(currentDiff);
+      modalBody.innerHTML = renderMultiSourceDetail(currentDiff);
+      bindMapCellHighlight();
+    });
+    toggleArea.appendChild(btnSep);
+    toggleArea.appendChild(btnMrg);
+  }
+
+  function bindMapCellHighlight() {
+    var cells = modalBody.querySelectorAll('.map-grid td[data-cell]');
+    if (cells.length === 0) return;
+    // Index cells by data-cell value across all map grids in modal
+    var cellIndex = {};
+    for (var i = 0; i < cells.length; i++) {
+      var key = cells[i].getAttribute('data-cell');
+      if (!cellIndex[key]) cellIndex[key] = [];
+      cellIndex[key].push(cells[i]);
+    }
+    cells.forEach(function(c) {
+      c.addEventListener('mouseenter', function() {
+        var peers = cellIndex[c.getAttribute('data-cell')] || [];
+        for (var j = 0; j < peers.length; j++) {
+          if (peers[j] !== c) peers[j].classList.add('cell-peer-highlight');
+        }
+      });
+      c.addEventListener('mouseleave', function() {
+        var peers = cellIndex[c.getAttribute('data-cell')] || [];
+        for (var j = 0; j < peers.length; j++) {
+          peers[j].classList.remove('cell-peer-highlight');
+        }
+      });
+    });
   }
 
   function closeModal() {
@@ -438,53 +571,58 @@
       }
       html += '</table>';
     } else if (isMap && diff.dim_x && diff.dim_y) {
-      // 2D MAP grid: render one grid per source stacked vertically
-      for (var s = 0; s < numSources; s++) {
-        var sv = sources[s];
-        html += '<div class="cmp-section-label">' + sourceLabels[s] + '</div>';
-        if (!sv.present) {
-          html += '<p class="cmp-missing">(missing)</p>';
-          continue;
-        }
-        if (!sv.value || sv.value.length === 0) {
-          html += '<p class="cmp-missing">(no value)</p>';
-          continue;
-        }
+      // 2D MAP grid
+      if (currentView === 'merged') {
+        html += renderMergedMap(diff, sources, numSources);
+      } else {
+        // Separated: render one grid per source stacked vertically
+        for (var s = 0; s < numSources; s++) {
+          var sv = sources[s];
+          html += '<div class="cmp-section-label">' + sourceLabels[s] + '</div>';
+          if (!sv.present) {
+            html += '<p class="cmp-missing">(missing)</p>';
+            continue;
+          }
+          if (!sv.value || sv.value.length === 0) {
+            html += '<p class="cmp-missing">(no value)</p>';
+            continue;
+          }
 
-        var vals = sv.value;
-        var dx = diff.dim_x;
-        var dy = diff.dim_y;
-        var xAxis = sv.x_axis || [];
-        var yAxis = sv.y_axis || [];
+          var vals = sv.value;
+          var dx = diff.dim_x;
+          var dy = diff.dim_y;
+          var xAxis = sv.x_axis || [];
+          var yAxis = sv.y_axis || [];
 
-        html += '<table class="cmp-table" style="font-size:.8rem;">';
-        // Header row: X-axis values
-        html += '<tr><td class="cmp-label" style="min-width:30px;"></td>';
-        for (var x = 0; x < dx && x < xAxis.length; x++) {
-          html += '<th>' + fmt(xAxis[x]) + '</th>';
-        }
-        html += '</tr>';
-
-        // Data rows
-        for (var y = 0; y < dy; y++) {
-          html += '<tr>';
-          // Y-axis label
-          html += '<td class="cmp-label">' + (yAxis[y] !== undefined ? fmt(yAxis[y]) : '') + '</td>';
-          for (var x = 0; x < dx; x++) {
-            var idx = y * dx + x;
-            if (idx < vals.length) {
-              // Compare with base source at same position
-              var baseValAtPos = sources[0].present && sources[0].value ? sources[0].value[idx] : undefined;
-              var isSame = (s === 0) || (baseValAtPos !== undefined && vals[idx] === baseValAtPos);
-              var cls = isSame ? 'cmp-same' : 'cmp-diff';
-              html += '<td class="' + cls + '">' + fmt(vals[idx]) + '</td>';
-            } else {
-              html += '<td class="cmp-missing">&mdash;</td>';
-            }
+          html += '<table class="cmp-table map-grid" data-source-idx="' + s + '" style="font-size:.8rem;">';
+          // Header row: X-axis values
+          html += '<tr><td class="cmp-label" style="min-width:30px;"></td>';
+          for (var x = 0; x < dx && x < xAxis.length; x++) {
+            html += '<th>' + fmt(xAxis[x]) + '</th>';
           }
           html += '</tr>';
+
+          // Data rows
+          for (var y = 0; y < dy; y++) {
+            html += '<tr>';
+            // Y-axis label
+            html += '<td class="cmp-label">' + (yAxis[y] !== undefined ? fmt(yAxis[y]) : '') + '</td>';
+            for (var x = 0; x < dx; x++) {
+              var idx = y * dx + x;
+              if (idx < vals.length) {
+                // Compare with base source at same position
+                var baseValAtPos = sources[0].present && sources[0].value ? sources[0].value[idx] : undefined;
+                var isSame = (s === 0) || (baseValAtPos !== undefined && vals[idx] === baseValAtPos);
+                var cls = isSame ? 'cmp-same' : 'cmp-diff';
+                html += '<td class="' + cls + '" data-cell="' + idx + '" data-row="' + y + '" data-col="' + x + '">' + fmt(vals[idx]) + '</td>';
+              } else {
+                html += '<td class="cmp-missing">&mdash;</td>';
+              }
+            }
+            html += '</tr>';
+          }
+          html += '</table>';
         }
-        html += '</table>';
       }
     } else {
       // Multi-value flat: show table with all sources as columns
@@ -514,6 +652,89 @@
       html += '</table>';
     }
 
+    return html;
+  }
+
+  function renderMergedMap(diff, sources, numSources) {
+    var dx = diff.dim_x;
+    var dy = diff.dim_y;
+    var html = '';
+
+    // Color legend
+    html += '<div class="color-legend">';
+    for (var s = 0; s < numSources; s++) {
+      var swatchIdx = s % 8;
+      html += '<span class="legend-item">';
+      html += '<span class="legend-swatch swatch-' + swatchIdx + '"></span>';
+      html += '<span class="legend-label">' + sourceLabels[s];
+      if (s === 0) html += ' (base)';
+      html += '</span>';
+      html += '</span>';
+    }
+    html += '</div>';
+
+    html += '<table class="compact-map-grid">';
+    // Header row: merge X-axis values per source
+    html += '<tr><td class="cmp-label" style="min-width:30px;"></td>';
+    for (var x = 0; x < dx; x++) {
+      html += '<th><div class="compact-cell">';
+      var baseXVal = sources[0].present && sources[0].x_axis && x < sources[0].x_axis.length
+        ? sources[0].x_axis[x] : undefined;
+      for (var s = 0; s < numSources; s++) {
+        var sv = sources[s];
+        var swatchIdx = s % 8;
+        if (sv.present && sv.x_axis && x < sv.x_axis.length) {
+          var isSame = (s === 0) || (baseXVal !== undefined && sv.x_axis[x] === baseXVal);
+          var cls = 'src-val src-color-' + swatchIdx + (isSame ? ' src-same' : ' src-diff');
+          html += '<span class="' + cls + '">' + fmt(sv.x_axis[x]) + '</span>';
+        } else {
+          html += '<span class="src-val src-color-' + swatchIdx + ' src-same" style="font-style:italic;">&mdash;</span>';
+        }
+      }
+      html += '</div></th>';
+    }
+    html += '</tr>';
+
+    // Data rows
+    for (var y = 0; y < dy; y++) {
+      html += '<tr>';
+      // Y-axis: merge values per source
+      html += '<td class="cmp-label"><div class="compact-cell" style="align-items:flex-end;">';
+      var baseYVal = sources[0].present && sources[0].y_axis && y < sources[0].y_axis.length
+        ? sources[0].y_axis[y] : undefined;
+      for (var s = 0; s < numSources; s++) {
+        var sv = sources[s];
+        var swatchIdx = s % 8;
+        if (sv.present && sv.y_axis && y < sv.y_axis.length) {
+          var isSame = (s === 0) || (baseYVal !== undefined && sv.y_axis[y] === baseYVal);
+          var cls = 'src-val src-color-' + swatchIdx + (isSame ? ' src-same' : ' src-diff');
+          html += '<span class="' + cls + '">' + fmt(sv.y_axis[y]) + '</span>';
+        } else {
+          html += '<span class="src-val src-color-' + swatchIdx + ' src-same" style="font-style:italic;">&mdash;</span>';
+        }
+      }
+      html += '</div></td>';
+
+      for (var x = 0; x < dx; x++) {
+        var idx = y * dx + x;
+        var baseValAtPos = sources[0].present && sources[0].value ? sources[0].value[idx] : undefined;
+        html += '<td><div class="compact-cell">';
+        for (var s = 0; s < numSources; s++) {
+          var sv = sources[s];
+          var swatchIdx = s % 8;
+          if (sv.present && sv.value && idx < sv.value.length) {
+            var isSame = (s === 0) || (baseValAtPos !== undefined && sv.value[idx] === baseValAtPos);
+            var cls = 'src-val src-color-' + swatchIdx + (isSame ? ' src-same' : ' src-diff');
+            html += '<span class="' + cls + '">' + fmt(sv.value[idx]) + '</span>';
+          } else {
+            html += '<span class="src-val src-color-' + swatchIdx + ' src-same" style="font-style:italic;">&mdash;</span>';
+          }
+        }
+        html += '</div></td>';
+      }
+      html += '</tr>';
+    }
+    html += '</table>';
     return html;
   }
 
